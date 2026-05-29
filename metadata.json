@@ -1,0 +1,6 @@
+{
+  "name": "Jack's Mowing & More",
+  "description": "Premium landscape design, professional lawn care, precision mowing, client testimonials, interactive cost estimating, and booking requests.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
