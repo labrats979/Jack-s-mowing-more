@@ -15,6 +15,11 @@ import { Service } from './types';
 import { Compass, Hammer, Flower, Sun, Droplets, ArrowRight, ShieldCheck, TreePine, Mail, Phone, MapPin } from 'lucide-react';
 
 export default function App() {
+  // Cover Photo customizable background state
+  const [coverPhoto, setCoverPhoto] = useState<string>(() => {
+    return localStorage.getItem('jacks_cover_photo') || '/src/assets/images/landscape_hero_1779327295782.png';
+  });
+
   // Load initial services from local storage or defaults
   const [services, setServices] = useState<Service[]>(() => {
     const saved = localStorage.getItem('jacks_mowing_services_v2');
@@ -115,6 +120,7 @@ export default function App() {
           <Hero
             onGoToEstimator={() => handleNavigateTo('estimator')}
             onExploreServices={() => handleNavigateTo('services')}
+            coverPhoto={coverPhoto}
           />
 
           {/* 3. DYNAMICALLY MODIFIABLE SERVICES SECTION */}
@@ -234,6 +240,11 @@ export default function App() {
         services={services}
         onSaveServices={handleSaveServices}
         onRestoreDefaults={handleRestoreDefaults}
+        coverPhoto={coverPhoto}
+        onSaveCoverPhoto={(url: string) => {
+          setCoverPhoto(url);
+          localStorage.setItem('jacks_cover_photo', url);
+        }}
       />
 
     </div>

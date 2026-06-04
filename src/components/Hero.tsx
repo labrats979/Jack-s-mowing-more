@@ -5,15 +5,17 @@ import { ChevronDown, Sparkles, MessageSquare, Flame } from 'lucide-react';
 interface HeroProps {
   onGoToEstimator: () => void;
   onExploreServices: () => void;
+  coverPhoto?: string;
 }
 
-export default function Hero({ onGoToEstimator, onExploreServices }: HeroProps) {
+export default function Hero({ onGoToEstimator, onExploreServices, coverPhoto }: HeroProps) {
+  const bgImg = coverPhoto || "/src/assets/images/landscape_hero_1779327295782.png";
   return (
     <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-stone-950 mt-20 pt-10">
       {/* Background Image: High-end custom landscaping Golden Hour */}
       <div className="absolute inset-0 z-0">
         <img
-          src="/src/assets/images/landscape_hero_1779327295782.png"
+          src={bgImg}
           alt="Jack's Mowing & More premium landscape design"
           className="w-full h-full object-cover scale-102 filter brightness-[0.4] contrast-[1.05]"
           referrerPolicy="no-referrer"

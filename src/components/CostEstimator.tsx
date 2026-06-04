@@ -23,9 +23,43 @@ export default function CostEstimator({
   const [lawnSqFt, setLawnSqFt] = useState<number | null>(null);
   const [frequency, setFrequency] = useState<'weekly' | 'biweekly' | null>(null);
 
+  // Editable pricing model states
+  const [showRateSettings, setShowRateSettings] = useState(false);
+  const [rates, setRates] = useState(() => {
+    try {
+      const saved = localStorage.getItem('jacks_calculator_rates');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return {
+      smallMin: 20,
+      smallMax: 30,
+      mediumMin: 30,
+      mediumMax: 45,
+      largeMin: 45,
+      largeMax: 65,
+      biweeklyMultiplier: 1.25,
+    };
+  });
+
+  const handleUpdateRate = (key: string, value: number) => {
+    setRates((prev: any) => {
+      const next = { ...prev, [key]: value };
+      try {
+        localStorage.setItem('jacks_calculator_rates', JSON.stringify(next));
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
+  };
+
   // Computed results state
-  const [minEstimate, setMinEstimate] = useState<number>(20);
-  const [maxEstimate, setMaxEstimate] = useState<number>(30);
+  const [minEstimate, setMinEstimate] = useState<number>(rates.smallMin);
+  const [maxEstimate, setMaxEstimate] = useState<number>(rates.smallMax);
 
   // Mapped category labels for the grey text area
   const getGreyLabel = (id: string, defaultCategory: string): string => {
@@ -56,29 +90,29 @@ export default function CostEstimator({
     }
 
     // Base Mowing Rates depending on selected yard size:
-    let baseMinMowing = 20;
-    let baseMaxMowing = 30;
+    let baseMinMowing = rates.smallMin;
+    let baseMaxMowing = rates.smallMax;
 
     if (lawnSqFt <= 2500) {
-      baseMinMowing = 20;
-      baseMaxMowing = 30;
+      baseMinMowing = rates.smallMin;
+      baseMaxMowing = rates.smallMax;
     } else if (lawnSqFt <= 4000) {
-      baseMinMowing = 30;
-      baseMaxMowing = 45;
+      baseMinMowing = rates.mediumMin;
+      baseMaxMowing = rates.mediumMax;
     } else {
-      baseMinMowing = 45;
-      baseMaxMowing = 65; // representation for $45+
+      baseMinMowing = rates.largeMin;
+      baseMaxMowing = rates.largeMax;
     }
 
-    // Bi-weekly service rate adjustment (adds 1.25 multiplier to the price on the estimate rate)
+    // Bi-weekly service rate adjustment
     if (frequency === 'biweekly') {
-      baseMinMowing = Math.round(baseMinMowing * 1.25);
-      baseMaxMowing = Math.round(baseMaxMowing * 1.25);
+      baseMinMowing = Math.round(baseMinMowing * rates.biweeklyMultiplier);
+      baseMaxMowing = Math.round(baseMaxMowing * rates.biweeklyMultiplier);
     }
 
     setMinEstimate(baseMinMowing);
     setMaxEstimate(baseMaxMowing);
-  }, [lawnSqFt, frequency]);
+  }, [lawnSqFt, frequency, rates]);
 
   // Filter out the base service 'Lawn Mowing' from optional companion add-ons in the selectable list
   const companionServicesList = services.filter((s) => s.id !== 'service-l-mowing');
@@ -88,7 +122,7 @@ export default function CostEstimator({
 
   // Math totals for the receipt
   const baseMowingAvg = lawnSqFt 
-    ? ((lawnSqFt <= 2500 ? 25 : lawnSqFt <= 4000 ? 37.5 : 55) * (frequency === 'biweekly' ? 1.25 : 1))
+    ? (((lawnSqFt <= 2500 ? (rates.smallMin + rates.smallMax) / 2 : lawnSqFt <= 4000 ? (rates.mediumMin + rates.mediumMax) / 2 : (rates.largeMin + rates.largeMax) / 2)) * (frequency === 'biweekly' ? rates.biweeklyMultiplier : 1))
     : 0;
 
   const handleApplyToBooking = () => {
@@ -142,10 +176,113 @@ export default function CostEstimator({
           <div className="lg:col-span-7 bg-stone-50 p-6 sm:p-10 rounded-3xl border border-stone-200/85 space-y-8 shadow-xs">
             
             {/* Control Head */}
-            <div className="flex items-center gap-3 border-b border-stone-200 pb-5">
-              <Sliders className="w-5 h-5 text-emerald-700" />
-              <h3 className="font-display font-semibold text-lg text-stone-900">Configure Your Estimate</h3>
+            <div className="flex items-center justify-between border-b border-stone-200 pb-5 gap-2">
+              <div className="flex items-center gap-3">
+                <Sliders className="w-5 h-5 text-emerald-700 font-bold" />
+                <h3 className="font-display font-bold text-sm sm:text-base text-stone-900 uppercase">Configure Your Estimate</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRateSettings(!showRateSettings)}
+                className="text-[10px] sm:text-[11px] font-mono text-emerald-800 hover:text-emerald-950 border border-emerald-250 bg-emerald-50 hover:bg-emerald-100/60 px-2.5 py-1.5 rounded-lg font-bold uppercase tracking-wider shadow-3xs flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <RefreshCw className={`w-3 h-3 ${showRateSettings ? 'animate-spin' : ''}`} />
+                {showRateSettings ? 'Close Rates setting' : 'Set Rates Model'}
+              </button>
             </div>
+
+            {/* Rate Settings Drawer */}
+            <AnimatePresence>
+              {showRateSettings && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden border border-emerald-200/60 bg-emerald-50/20 p-5 rounded-2xl space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-mono font-bold text-emerald-900 uppercase tracking-wider">
+                      Adjust Calculator Pricing Rates ($)
+                    </h4>
+                    <span className="text-[9px] font-mono text-stone-500 uppercase">Auto-Saves to Device</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {/* Small Yard */}
+                    <div className="space-y-1">
+                      <span className="text-[9px] tracking-tight text-stone-600 block uppercase font-mono font-semibold">Small Yard Min ($)</span>
+                      <input
+                        type="number"
+                        value={rates.smallMin}
+                        onChange={(e) => handleUpdateRate('smallMin', Math.max(1, Number(e.target.value)))}
+                        className="w-full px-3 py-1.5 bg-white border border-stone-250 rounded-lg text-stone-900 font-mono text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] tracking-tight text-stone-600 block uppercase font-mono font-semibold">Small Yard Max ($)</span>
+                      <input
+                        type="number"
+                        value={rates.smallMax}
+                        onChange={(e) => handleUpdateRate('smallMax', Math.max(1, Number(e.target.value)))}
+                        className="w-full px-3 py-1.5 bg-white border border-stone-250 rounded-lg text-stone-900 font-mono text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                      />
+                    </div>
+
+                    {/* Medium Yard */}
+                    <div className="space-y-1">
+                      <span className="text-[9px] tracking-tight text-stone-600 block uppercase font-mono font-semibold">Medium Yard Min ($)</span>
+                      <input
+                        type="number"
+                        value={rates.mediumMin}
+                        onChange={(e) => handleUpdateRate('mediumMin', Math.max(1, Number(e.target.value)))}
+                        className="w-full px-3 py-1.5 bg-white border border-stone-250 rounded-lg text-stone-900 font-mono text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] tracking-tight text-stone-600 block uppercase font-mono font-semibold">Medium Yard Max ($)</span>
+                      <input
+                        type="number"
+                        value={rates.mediumMax}
+                        onChange={(e) => handleUpdateRate('mediumMax', Math.max(1, Number(e.target.value)))}
+                        className="w-full px-3 py-1.5 bg-white border border-stone-250 rounded-lg text-stone-900 font-mono text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                      />
+                    </div>
+
+                    {/* Large Yard */}
+                    <div className="space-y-1">
+                      <span className="text-[9px] tracking-tight text-stone-600 block uppercase font-mono font-semibold">Large Yard Min ($)</span>
+                      <input
+                        type="number"
+                        value={rates.largeMin}
+                        onChange={(e) => handleUpdateRate('largeMin', Math.max(1, Number(e.target.value)))}
+                        className="w-full px-3 py-1.5 bg-white border border-stone-250 rounded-lg text-stone-900 font-mono text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] tracking-tight text-stone-600 block uppercase font-mono font-semibold">Large Yard Max ($)</span>
+                      <input
+                        type="number"
+                        value={rates.largeMax}
+                        onChange={(e) => handleUpdateRate('largeMax', Math.max(1, Number(e.target.value)))}
+                        className="w-full px-3 py-1.5 bg-white border border-stone-250 rounded-lg text-stone-900 font-mono text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                      />
+                    </div>
+
+                    {/* Bi-weekly scale */}
+                    <div className="space-y-1 col-span-2 sm:col-span-1 border-t sm:border-t-0 border-emerald-100 pt-2 sm:pt-0">
+                      <span className="text-[9px] tracking-tight text-stone-600 block uppercase font-mono font-semibold">Bi-Weekly Multiplier</span>
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={rates.biweeklyMultiplier}
+                        onChange={(e) => handleUpdateRate('biweeklyMultiplier', Math.max(1, Number(e.target.value)))}
+                        className="w-full px-3 py-1.5 bg-white border border-stone-250 rounded-lg text-stone-900 font-mono text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Area Covered Selection Boxes */}
             <div className="space-y-3">
@@ -288,6 +425,9 @@ export default function CostEstimator({
                       {greyLabel && (
                         <div className="flex items-center justify-between w-full mt-2 pt-2 border-t border-stone-150 text-[9px] font-mono uppercase tracking-wider">
                           <span className="text-stone-400 font-medium">{greyLabel}</span>
+                          {svc.priceEstimate && (
+                            <span className="text-emerald-700 font-bold">{svc.priceEstimate}</span>
+                          )}
                         </div>
                       )}
                     </button>
@@ -386,11 +526,11 @@ export default function CostEstimator({
                       <div className="py-3 border-b border-stone-250/80 border-dashed space-y-3.5 max-h-72 overflow-y-auto pr-0.5 custom-scrollbar">
                         
                         {/* Item 1: Base Yard Size Cut */}
-                        <div className="space-y-1">
+                        <div className="space-y-1 font-mono">
                           <div className="flex justify-between font-bold text-stone-900">
                             <span>1. BASE MOWING ({lawnSqFt <= 2500 ? 'SMALL' : lawnSqFt <= 4000 ? 'MEDIUM' : 'LARGE'} YARD)</span>
-                            <span className="text-stone-950">
-                              {lawnSqFt <= 2500 ? '$20 - $30' : lawnSqFt <= 4000 ? '$30 - $45' : '$45+'}
+                            <span className="text-stone-950 font-bold">
+                              {lawnSqFt <= 2500 ? `$${rates.smallMin} - $${rates.smallMax}` : lawnSqFt <= 4000 ? `$${rates.mediumMin} - $${rates.mediumMax}` : `$${rates.largeMin}+`}
                             </span>
                           </div>
                           <div className="text-[9px] text-stone-500 pl-2 leading-normal">
@@ -400,11 +540,11 @@ export default function CostEstimator({
                         </div>
 
                         {/* Item 2: Selected Frequency Choice */}
-                        <div className="space-y-1 pt-2 border-t border-stone-200/40">
+                        <div className="space-y-1 pt-2 border-t border-stone-200/40 font-mono">
                           <div className="flex justify-between font-bold text-stone-900">
                             <span>2. FREQUENCY ({frequency === 'weekly' ? 'WEEKLY' : 'BI-WEEKLY'})</span>
-                            <span className="text-stone-950">
-                              {frequency === 'weekly' ? 'Included Standard' : '1.25x Rate Scale'}
+                            <span className="text-stone-950 font-bold">
+                              {frequency === 'weekly' ? 'Included Standard' : `${rates.biweeklyMultiplier}x Rate Scale`}
                             </span>
                           </div>
                           <div className="text-[9px] text-stone-500 pl-2 leading-normal">

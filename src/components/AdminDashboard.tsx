@@ -196,6 +196,8 @@ interface AdminDashboardProps {
   services: Service[];
   onSaveServices: (updated: Service[]) => void;
   onRestoreDefaults: () => void;
+  coverPhoto?: string;
+  onSaveCoverPhoto?: (url: string) => void;
 }
 
 interface Lead {
@@ -214,7 +216,9 @@ interface Lead {
 export default function AdminDashboard({
   services,
   onSaveServices,
-  onRestoreDefaults
+  onRestoreDefaults,
+  coverPhoto,
+  onSaveCoverPhoto
 }: AdminDashboardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [password, setPassword] = useState('');
@@ -250,6 +254,73 @@ export default function AdminDashboard({
     beforeImg: false,
     afterImg: false
   });
+
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+
+  const handleUploadCoverFile = (file: File) => {
+    setIsUploadingCover(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result && typeof event.target.result === 'string') {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            
+            fetch('/api/upload-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ base64: compressedDataUrl, fileName: file.name })
+            })
+            .then(res => {
+              if (!res.ok) throw new Error('File upload script failed');
+              return res.json();
+            })
+            .then(data => {
+              if (data.imageUrl && onSaveCoverPhoto) {
+                onSaveCoverPhoto(data.imageUrl);
+              } else {
+                throw new Error('Image URL undefined in response');
+              }
+            })
+            .catch(err => {
+              console.error('Failed to write cover to local workspace, caching as base64:', err);
+              if (onSaveCoverPhoto) {
+                onSaveCoverPhoto(compressedDataUrl);
+              }
+            })
+            .finally(() => {
+              setIsUploadingCover(false);
+            });
+          }
+        };
+        img.src = event.target.result;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleUploadFile = (file: File, field: 'beforeImg' | 'afterImg') => {
     setIsUploading(prev => ({ ...prev, [field]: true }));
@@ -716,7 +787,7 @@ export default function AdminDashboard({
                             : 'bg-white border border-stone-200 hover:bg-stone-50 text-stone-600'
                         }`}
                       >
-                        Before & After Photos
+                        Photos & Website Decor
                       </button>
                     </div>
 
@@ -1079,6 +1150,82 @@ export default function AdminDashboard({
                           <p className="text-stone-500 text-[11px] font-light mt-1">
                             Set physical image paths/URLs and descriptive captions for each landscape treatment. The split-screen slider on detailed service pages loads these values in real-time.
                           </p>
+                        </div>
+
+                        {/* Website Cover Configuration Panel */}
+                        <div className="bg-emerald-50/15 border border-emerald-255 rounded-2xl p-5 sm:p-6 space-y-5 text-left font-sans mb-8">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200 pb-3">
+                            <div>
+                              <h6 className="font-display font-bold text-sm text-stone-900 uppercase flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-emerald-700 font-bold" />
+                                Main Website Cover Photo
+                              </h6>
+                              <p className="text-stone-505 text-[11px] font-light mt-0.5">Customize the primary background image displayed at the very top of the website (Hero Header).</p>
+                            </div>
+                            {coverPhoto !== '/src/assets/images/landscape_hero_1779327295782.png' && onSaveCoverPhoto && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm('Reset the website cover background to the default golden hour landscape photo?')) {
+                                    onSaveCoverPhoto('/src/assets/images/landscape_hero_1779327295782.png');
+                                  }
+                                }}
+                                className="px-2.5 py-1.5 bg-red-50 text-red-705 border border-red-200 hover:bg-red-100/70 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
+                              >
+                                Reset Primary
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Selector Input */}
+                            <div className="space-y-4">
+                              <ImageUploadSelector
+                                label="Upload New Cover Photo or Enter URL"
+                                value={coverPhoto || ''}
+                                onChange={(val) => onSaveCoverPhoto && onSaveCoverPhoto(val)}
+                                onFileChange={handleUploadCoverFile}
+                                placeholder="e.g. /src/assets/images/landscape_hero_1779327295782.png or custom Unsplash URL"
+                                isUploading={isUploadingCover}
+                              />
+                            </div>
+
+                            {/* Live Simulated Mobile Preview */}
+                            <div className="bg-stone-900 border border-stone-800 p-4.5 rounded-xl text-stone-200 flex flex-col justify-between h-full relative overflow-hidden min-h-[160px] shadow-3xs">
+                              {/* Image Background */}
+                              <div className="absolute inset-0 z-0 bg-stone-950">
+                                <img
+                                  src={coverPhoto || '/src/assets/images/landscape_hero_1779327295782.png'}
+                                  alt="Live cover background"
+                                  className="w-full h-full object-cover opacity-45 scale-102 filter brightness-[0.7] contrast-[1.05]"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-transparent to-stone-950/40" />
+                              </div>
+
+                              <div className="relative z-10 flex flex-col justify-between h-full space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[8px] font-mono bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                                    LIVE HERO PREVIEW
+                                  </span>
+                                  <span className="text-[8px] font-mono text-stone-400 uppercase tracking-widest">
+                                    JACK’S MOWING &amp; MORE
+                                  </span>
+                                </div>
+
+                                <div className="text-left space-y-1 max-w-[280px]">
+                                  <h5 className="font-display font-black text-xs sm:text-sm text-white leading-tight uppercase tracking-tight">
+                                    At Jack’s Mowing and More, we provide dependable lawn care...
+                                  </h5>
+                                </div>
+
+                                <div className="flex gap-2">
+                                  <div className="h-4.5 w-18 rounded bg-white text-[7px] font-bold text-stone-900 flex items-center justify-center font-mono uppercase tracking-widest shadow-2xs">RATE</div>
+                                  <div className="h-4.5 w-18 rounded bg-transparent border border-white/20 text-[7px] font-bold text-white flex items-center justify-center font-mono uppercase tracking-widest">SERVICES</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Editor Forms Area */}
