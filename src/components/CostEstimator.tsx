@@ -41,7 +41,7 @@ export default function CostEstimator({
       case 'service-l-weed':
         return 'Weed control';
       case 'service-l-fertilizer':
-        return '';
+        return 'Lawn Fertilizer';
       case 'service-l-restoration':
         return 'Lawn Rejuvenation';
       default:
@@ -70,10 +70,10 @@ export default function CostEstimator({
       baseMaxMowing = 65; // representation for $45+
     }
 
-    // Bi-weekly service rate adjustment (makes the price go up by $25)
+    // Bi-weekly service rate adjustment (adds 1.25 multiplier to the price on the estimate rate)
     if (frequency === 'biweekly') {
-      baseMinMowing += 25;
-      baseMaxMowing += 25;
+      baseMinMowing = Math.round(baseMinMowing * 1.25);
+      baseMaxMowing = Math.round(baseMaxMowing * 1.25);
     }
 
     setMinEstimate(baseMinMowing);
@@ -88,13 +88,13 @@ export default function CostEstimator({
 
   // Math totals for the receipt
   const baseMowingAvg = lawnSqFt 
-    ? (lawnSqFt <= 2500 ? 25 : lawnSqFt <= 4000 ? 37.5 : 55) + (frequency === 'biweekly' ? 25 : 0)
+    ? ((lawnSqFt <= 2500 ? 25 : lawnSqFt <= 4000 ? 37.5 : 55) * (frequency === 'biweekly' ? 1.25 : 1))
     : 0;
 
   const handleApplyToBooking = () => {
     if (lawnSqFt === null || frequency === null) return;
     const serviceType = 'Precision Lawn Mowing';
-    const frequencyLabelText = frequency === 'weekly' ? '1 cut per week' : 'Bi-Weekly';
+    const frequencyLabelText = frequency === 'weekly' ? 'cut per week' : 'cut every other week';
     const finalRateText = lawnSqFt === 5000 
       ? `$${minEstimate}+ / cut` 
       : `$${minEstimate} - $${maxEstimate} / cut`;
@@ -132,7 +132,7 @@ export default function CostEstimator({
             Interactive Cost Estimator
           </h2>
           <p className="text-stone-605 font-light text-sm sm:text-base leading-relaxed">
-            Get a free online estimate now with our interactive cost estimator. Choose your yard size and project parameters below to receive instant pricing guidance.
+            Get a free online estimate instantly with our free interactive cost estimator! Simply choose your lawn size and select your desired frequency and specifications below.
           </p>
         </div>
 
@@ -170,7 +170,7 @@ export default function CostEstimator({
                       key={yard.id}
                       type="button"
                       onClick={() => setLawnSqFt(yard.sqFt)}
-                      className={`text-left p-4 rounded-xl border transition-all duration-250 cursor-pointer flex flex-col justify-between h-24 ${
+                      className={`text-left p-4 rounded-xl border transition-all duration-255 cursor-pointer flex flex-col justify-between h-24 ${
                         isSelected
                           ? 'bg-white border-emerald-600 text-stone-950 ring-2 ring-emerald-600/10 shadow-sm'
                           : 'bg-white border-stone-200 hover:border-emerald-500/40 text-stone-500 hover:bg-stone-55 hover:text-stone-800'
@@ -186,7 +186,7 @@ export default function CostEstimator({
                           )}
                         </div>
                       </div>
-                      <span className={`text-[11px] font-mono mt-2 block font-bold ${isSelected ? 'text-emerald-750' : 'text-stone-500'}`}>
+                      <span className={`text-[11px] font-mono mt-2 block font-bold ${isSelected ? 'text-emerald-750' : 'text-stone-505'}`}>
                         {yard.bottomLabel}
                       </span>
                     </button>
@@ -203,15 +203,15 @@ export default function CostEstimator({
                 </label>
                 {frequency !== null && (
                   <span className="font-mono text-emerald-800 bg-emerald-50 border border-emerald-250 px-3 py-1 rounded text-xs font-bold uppercase tracking-wide">
-                    {frequency === 'weekly' ? '1 cut per week' : 'Bi-Weekly'}
+                    {frequency === 'weekly' ? 'cut per week' : 'cut every other week'}
                   </span>
                 )}
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
-                  { id: 'weekly', label: '1 cut per week', bottomLabel: 'Standard Rate' },
-                  { id: 'biweekly', label: 'BI-Weekl', bottomLabel: '+$25 visit rate scale' }
+                  { id: 'weekly', label: 'Weekly', bottomLabel: 'cut per week' },
+                  { id: 'biweekly', label: 'Bi-Weekly', bottomLabel: 'cut every other week' }
                 ].map((item) => {
                   const isSelected = frequency === item.id;
                   return (
@@ -219,7 +219,7 @@ export default function CostEstimator({
                       key={item.id}
                       type="button"
                       onClick={() => setFrequency(item.id as 'weekly' | 'biweekly')}
-                      className={`text-left p-4 rounded-xl border transition-all duration-250 cursor-pointer flex flex-col justify-between h-24 ${
+                      className={`text-left p-4 rounded-xl border transition-all duration-255 cursor-pointer flex flex-col justify-between h-24 ${
                         isSelected
                           ? 'bg-white border-emerald-600 text-stone-950 ring-2 ring-emerald-600/10 shadow-sm'
                           : 'bg-white border-stone-200 hover:border-emerald-500/40 text-stone-500 hover:bg-stone-55 hover:text-stone-800'
@@ -404,7 +404,7 @@ export default function CostEstimator({
                           <div className="flex justify-between font-bold text-stone-900">
                             <span>2. FREQUENCY ({frequency === 'weekly' ? 'WEEKLY' : 'BI-WEEKLY'})</span>
                             <span className="text-stone-950">
-                              {frequency === 'weekly' ? 'Included Standard' : '+$25 visit rate'}
+                              {frequency === 'weekly' ? 'Included Standard' : '1.25x Rate Scale'}
                             </span>
                           </div>
                           <div className="text-[9px] text-stone-500 pl-2 leading-normal">

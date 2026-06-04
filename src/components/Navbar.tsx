@@ -51,10 +51,7 @@ export default function Navbar({
           <JacksLogo size={48} className="transform group-hover:scale-105 transition-transform duration-350" />
           <div className="flex flex-col">
             <span className="font-serif font-black text-xl tracking-tight text-stone-900 leading-none">
-              Jack's
-            </span>
-            <span className="text-[9px] font-mono font-bold tracking-widest text-emerald-700 uppercase pt-0.5 leading-none">
-              Mowing & More
+              Jack's Mowing & More
             </span>
           </div>
         </button>

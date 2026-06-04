@@ -30,7 +30,18 @@ export default function BookingForm({
 
   const [submitted, setSubmitted] = useState(false);
   const [dropboxOpen, setDropboxOpen] = useState(false);
+  const [showToast, setShowToast] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Auto-dismiss Toast notification after 5 seconds
+  useEffect(() => {
+    if (showToast) {
+      const timer = setTimeout(() => {
+        setShowToast(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showToast]);
 
   // Sync state if estimator passes new parameters
   useEffect(() => {
@@ -106,6 +117,7 @@ export default function BookingForm({
 
     // Simulate real local submit
     setSubmitted(true);
+    setShowToast(true);
     
     // Clear elements but keep some defaults
     setFormData({
@@ -126,15 +138,9 @@ export default function BookingForm({
         
         {/* Module Header */}
         <div className="text-center max-w-xl mx-auto mb-16">
-          <span className="text-emerald-700 font-mono text-[11px] font-bold uppercase tracking-widest block mb-3">
+          <h2 className="font-display font-bold text-3xl sm:text-4xl text-emerald-700 tracking-tight leading-none uppercase">
             Get On Our Schedule
-          </span>
-          <h2 className="font-display font-bold text-3xl sm:text-4xl text-stone-900 tracking-tight leading-none mb-4 uppercase">
-            Request Your Consultation
           </h2>
-          <p className="text-stone-605 font-light text-sm leading-relaxed">
-            Every exquisite garden begins with a conversation. Let us know what you've envisioned and we will schedule an in-person layout briefing.
-          </p>
         </div>
 
         {/* Core Request Card */}
@@ -421,6 +427,39 @@ export default function BookingForm({
         </div>
 
       </div>
+
+      {/* Toast Notification Container */}
+      <AnimatePresence>
+        {showToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+            className="fixed bottom-6 left-6 z-50 bg-stone-900 border border-stone-800 text-white p-4.5 rounded-2xl shadow-2xl max-w-sm flex items-start gap-3.5 pr-10"
+            role="alert"
+          >
+            <div className="w-9 h-9 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div className="flex-1 text-left space-y-1">
+              <h5 className="font-display font-bold text-xs uppercase tracking-wider text-emerald-400">
+                Request Submitted!
+              </h5>
+              <p className="text-stone-305 text-[11px] leading-relaxed font-light">
+                Your consultation request has been successfully received. We will reach out to schedule an onsite layout briefing.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowToast(false)}
+              className="absolute top-3 right-3 text-stone-400 hover:text-white p-1 hover:bg-stone-800 rounded-full transition-all cursor-pointer"
+              title="Dismiss toast"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

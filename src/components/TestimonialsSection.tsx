@@ -173,14 +173,11 @@ export default function TestimonialsSection() {
         {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
           <div className="max-w-xl">
-            <span className="text-emerald-700 font-mono text-[11px] font-bold uppercase tracking-widest block mb-3">
-              Words From The Soil
-            </span>
             <h2 className="font-display font-bold text-3xl sm:text-4xl text-stone-900 tracking-tight leading-none mb-4 uppercase">
-              Letters of Satisfaction
+              Reviews
             </h2>
             <p className="text-stone-605 font-light leading-relaxed text-sm sm:text-base">
-              Read how we align botanical choices, lawn recovery, custom stone joinery, and reliable estimates with our clients’ visions.
+              See what our clients are saying about their experience with us—real stories, real results.
             </p>
             <div className="inline-flex flex-wrap items-center gap-2 mt-4 px-3.5 py-1.5 rounded-xl bg-orange-50/70 border border-orange-100 text-[11px] text-orange-850 font-sans shadow-3xs">
               <span className="flex items-center gap-1.5 text-stone-900">

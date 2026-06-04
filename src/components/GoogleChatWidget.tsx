@@ -160,72 +160,61 @@ export default function GoogleChatWidget() {
     setErrorStatus(null);
   };
 
-  return (
-    <section id="google-chat-section" className="bg-white border-t border-stone-150 py-16 text-left relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/[0.03] rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-500/[0.03] rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none" />
-      
-      <div className="max-w-7xl mx-auto px-6 relative z-10">
-        
-        {/* Section Heading */}
-        <div className="max-w-3xl mb-10 space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-805 text-[10px] font-mono uppercase tracking-wider font-bold">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
-            Direct Support Line
-          </div>
-          <h2 className="text-3xl font-display font-black text-stone-900 tracking-tight uppercase">
-            Consult with Anthany
-          </h2>
-          <p className="text-stone-600 text-xs font-light max-w-xl leading-relaxed">
-            Consult Anthany, our dedicated local horticulture advisor, instantly. Ask questions about grass restoration, local soil biology, organic root food, or inquire about pricing estimates before booking with Jack's team.
-          </p>
-        </div>
+  const [isOpen, setIsOpen] = useState(false);
 
-        {/* Outer Chat Frame */}
-        <div className="max-w-4xl mx-auto bg-stone-50 border border-stone-200 rounded-3xl overflow-hidden shadow-sm">
-          
-          {/* CHAT CORE DIALOG LAYER */}
-          <div className="flex flex-col justify-between bg-white h-[530px]">
-            
+  return (
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.92, y: 30 }}
+            transition={{ duration: 0.25 }}
+            className="mb-4 w-96 max-w-[calc(100vw-32px)] h-[540px] bg-white border border-stone-200/90 rounded-2xl shadow-2xl flex flex-col justify-between overflow-hidden"
+          >
             {/* Header Display */}
-            <div className="px-6 py-4 border-b border-stone-150 bg-stone-50/50 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-stone-150 bg-stone-50/50 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-805 shrink-0 shadow-3xs">
                   <Leaf className="w-4 h-4 fill-emerald-100" />
                 </div>
-                <div>
+                <div className="text-left">
                   <h4 className="font-display font-bold text-xs text-stone-900 uppercase tracking-wider">
-                    Anthany (Horticulture Specialist)
+                    Anthany (AI Advisor)
                   </h4>
-                  <span className="text-[9px] font-mono text-emerald-700 font-medium tracking-wide">
+                  <span className="text-[9px] font-mono text-emerald-700 font-medium tracking-wide block">
                     OREGON HORTICULTURAL COUNSEL
                   </span>
                 </div>
               </div>
               
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
                 <button 
                   onClick={handleResetChat}
-                  className="text-stone-605 hover:text-emerald-805 hover:bg-stone-105 border border-stone-200/80 px-2.5 py-1.5 rounded-xl font-mono font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shadow-3xs uppercase"
-                  title="Restart Conversation"
+                  className="text-stone-605 hover:text-emerald-805 hover:bg-stone-105 border border-stone-200/80 px-2 py-1 rounded-lg font-mono font-bold text-[9px] transition-all cursor-pointer flex items-center gap-1 shadow-3xs uppercase"
+                  title="Clear Chat"
                 >
-                  <RefreshCw className="w-3 h-3" /> Clear Chat
+                  <RefreshCw className="w-2.5 h-2.5" /> Clear
                 </button>
-                <div className="hidden sm:flex items-center gap-1.5 bg-emerald-50/80 border border-emerald-150/40 px-2 py-1 rounded-lg">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[9px] font-mono text-emerald-850 font-bold uppercase">Online</span>
-                </div>
+                <button 
+                  onClick={() => setIsOpen(false)}
+                  className="text-stone-405 hover:text-stone-700 p-1 hover:bg-stone-100 rounded-full"
+                  title="Close Advisor"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
             {/* Chat message stream container */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-white text-left">
               {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center p-6 text-center space-y-6 my-auto pt-10">
-                  <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-800 shadow-3xs">
-                    <MessageSquare className="w-5 h-5 text-emerald-700" />
+                <div className="h-full flex flex-col items-center justify-center p-4 text-center space-y-4 my-auto pt-4">
+                  <div className="w-10 h-10 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700 shadow-3xs">
+                    <MessageSquare className="w-4 h-4 text-emerald-705" />
                   </div>
-                  <div className="max-w-md space-y-2">
+                  <div className="max-w-md space-y-1.5">
                     <h5 className="font-display font-bold text-xs text-stone-900 uppercase tracking-wider">Anthany's Direct Advice Line</h5>
                     <p className="text-stone-500 text-[11px] font-light leading-relaxed">
                       Anthany is online and ready to assist you. Ask any question about seasonal lawn restoration, landscaping pricing, lawn aesthetics, or soil prep.
@@ -233,15 +222,15 @@ export default function GoogleChatWidget() {
                   </div>
 
                   {/* Suggestions block */}
-                  <div className="max-w-lg w-full space-y-2.5 pt-2">
+                  <div className="max-w-lg w-full space-y-2 pt-2">
                     <span className="text-[10px] font-mono text-stone-400 uppercase tracking-widest block font-bold">Suggested Questions:</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+                    <div className="grid grid-cols-1 gap-1.5 text-left">
                       {suggestedQuestions.map((q, i) => (
                         <button
                           key={i}
                           onClick={() => handleSendMessage(q)}
                           disabled={isTyping}
-                          className="text-left py-2 px-3 rounded-xl bg-stone-50 hover:bg-emerald-50 border border-stone-200/80 hover:border-emerald-250/50 text-stone-700 hover:text-emerald-950 text-[11px] transition-all cursor-pointer font-light leading-snug shadow-3xs"
+                          className="text-left py-1.5 px-3 rounded-xl bg-stone-50 hover:bg-emerald-50 border border-stone-200/80 hover:border-emerald-250/50 text-stone-750 hover:text-emerald-950 text-[10px] transition-all cursor-pointer font-light leading-snug shadow-3xs"
                         >
                           {q}
                         </button>
@@ -259,23 +248,23 @@ export default function GoogleChatWidget() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.2 }}
-                        className={`flex gap-3 max-w-[85%] ${isBot ? 'mr-auto text-left' : 'ml-auto flex-row-reverse text-right'}`}
+                        className={`flex gap-2.5 max-w-[90%] ${isBot ? 'mr-auto text-left' : 'ml-auto flex-row-reverse text-right'}`}
                       >
                         {/* Avatar icon */}
-                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 shadow-3xs ${
+                        <div className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 shadow-3xs ${
                           isBot 
                             ? 'bg-emerald-50 border-emerald-200 text-emerald-805' 
                             : 'bg-stone-50 border-stone-200 text-stone-605'
                         }`}>
-                          {isBot ? <Leaf className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                          {isBot ? <Leaf className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
                         </div>
 
                         {/* Content block */}
-                        <div className="space-y-1">
-                          <div className={`p-4.5 rounded-2xl border ${
+                        <div className="space-y-0.5">
+                          <div className={`p-3.5 rounded-xl border text-xs leading-relaxed ${
                             isBot 
-                              ? 'bg-emerald-50/40 border-emerald-100 text-stone-850 rounded-tl-none font-sans' 
-                              : 'bg-black border-black text-white rounded-tr-none font-mono text-xs text-left shadow-xs'
+                              ? 'bg-emerald-50/40 border-emerald-100 text-stone-850 rounded-tl-none font-sans text-left' 
+                              : 'bg-stone-900 border-stone-900 text-white rounded-tr-none font-mono text-[11px] text-left shadow-xs'
                           }`}>
                             {isBot ? (
                               <RenderMarkdown text={msg.text} />
@@ -283,7 +272,7 @@ export default function GoogleChatWidget() {
                               <p className="font-light leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                             )}
                           </div>
-                          <div className={`text-[9px] font-mono text-stone-400 font-light flex items-center gap-1.5 ${isBot ? 'justify-start pl-1' : 'justify-end pr-1'}`}>
+                          <div className={`text-[8px] font-mono text-stone-400 font-light flex items-center gap-1.5 ${isBot ? 'justify-start pl-1' : 'justify-end pr-1'}`}>
                             <span className="font-bold text-stone-500 uppercase">{isBot ? "Anthany" : "You"}</span>
                             <span>•</span>
                             <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -297,25 +286,25 @@ export default function GoogleChatWidget() {
 
               {/* Bot typing state indicator */}
               {isTyping && (
-                <div className="flex gap-3 max-w-[85%] mr-auto text-left">
-                  <div className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-805 flex items-center justify-center shrink-0 animate-pulse">
-                    <Leaf className="w-4 h-4" />
+                <div className="flex gap-2.5 max-w-[90%] mr-auto text-left">
+                  <div className="w-7 h-7 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-805 flex items-center justify-center shrink-0 animate-pulse">
+                    <Leaf className="w-3.5 h-3.5" />
                   </div>
                   <div className="space-y-1">
-                    <div className="p-4 bg-emerald-50/30 border border-emerald-100 rounded-2xl rounded-tl-none flex items-center gap-1 w-16 h-10">
-                      <span className="w-1.5 h-1.5 bg-emerald-700 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1.5 h-1.5 bg-emerald-700 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1.5 h-1.5 bg-emerald-700 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <div className="p-3 bg-emerald-50/30 border border-emerald-100 rounded-xl rounded-tl-none flex items-center gap-1 w-14 h-8">
+                      <span className="w-1 h-1 bg-emerald-700 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1 h-1 bg-emerald-700 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1 h-1 bg-emerald-700 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                   </div>
                 </div>
               )}
 
               {errorStatus && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-[10px] text-red-700 font-semibold max-w-sm mx-auto">
-                  <Info className="w-4 h-4 shrink-0 text-red-500 mt-0.5" />
-                  <div className="space-y-1">
-                    <span className="font-bold uppercase tracking-wider">Communication Notice</span>
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-[9px] text-red-750 font-semibold max-w-sm mx-auto">
+                  <Info className="w-3.5 h-3.5 shrink-0 text-red-500 mt-0.5" />
+                  <div className="space-y-0.5 text-left">
+                    <span className="font-bold uppercase tracking-wider">Notice</span>
                     <p className="font-light leading-normal">{errorStatus}</p>
                   </div>
                 </div>
@@ -325,37 +314,47 @@ export default function GoogleChatWidget() {
             </div>
 
             {/* Input Form Footer */}
-            <form onSubmit={handleFormSubmit} className="p-4 border-t border-stone-150 bg-stone-50/50">
-              <div className="flex gap-2">
+            <form onSubmit={handleFormSubmit} className="p-3 border-t border-stone-150 bg-stone-50/50">
+              <div className="flex gap-1.5">
                 <input
                   type="text"
-                  placeholder={isTyping ? "Anthany is typing..." : "Ask Anthany about lawn restoring, compost depth, hedge trimming..."}
+                  placeholder={isTyping ? "Anthany is typing..." : "Ask about grass restoration, hedge trimming..."}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   disabled={isTyping}
-                  className="bg-white border border-stone-300 rounded-xl py-3 px-4 text-xs text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-650 focus:ring-1 focus:ring-emerald-600 flex-1 min-w-0 font-light font-sans shadow-3xs"
+                  className="bg-white border border-stone-300 rounded-xl py-2 px-3 text-[11px] text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-650 focus:ring-1 focus:ring-emerald-600 flex-1 min-w-0 font-light font-sans shadow-3xs"
                 />
                 
                 <button
                   type="submit"
                   disabled={isTyping || !inputValue.trim()}
-                  className={`p-3 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                  className={`p-2.5 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                     inputValue.trim() && !isTyping
-                      ? 'bg-black text-white hover:bg-stone-900 shadow-md transform hover:scale-[1.02]' 
+                      ? 'bg-black text-white hover:bg-stone-900 shadow-md' 
                       : 'bg-stone-100 border border-stone-200 text-stone-400 cursor-not-allowed'
                   }`}
                   title="Send message"
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-3.5 h-3.5" />
                 </button>
               </div>
             </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          </div>
-
-        </div>
-
-      </div>
-    </section>
+      {/* Floating Trigger Circle Button with Message Icon */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-14 h-14 rounded-full bg-black hover:bg-zinc-900 border border-stone-800 text-white flex items-center justify-center shadow-2xl transition-all transform hover:scale-105 active:scale-95 focus:outline-none cursor-pointer"
+        title="Chat with Anthany"
+      >
+        {isOpen ? (
+          <X className="w-6 h-6" />
+        ) : (
+          <MessageSquare className="w-6 h-6" />
+        )}
+      </button>
+    </div>
   );
 }

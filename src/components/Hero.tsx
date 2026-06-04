@@ -34,20 +34,10 @@ export default function Hero({ onGoToEstimator, onExploreServices }: HeroProps) 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.1 }}
-          className="font-display font-black text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white tracking-wide uppercase leading-[1.1] max-w-4xl mb-6"
+          className="font-display font-black text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white tracking-wide uppercase leading-[1.1] max-w-4xl mb-12 sm:mb-14"
         >
-          Transforming outdoor spaces with expert landscape design & installation
+          At Jack’s Mowing and More, we provide dependable lawn care and landscaping services that make your property stand out
         </motion.h1>
-
-        {/* Subtitle below */}
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.25 }}
-          className="text-stone-200 text-sm sm:text-base md:text-lg font-light leading-relaxed max-w-3xl mb-12 sm:mb-14 drop-shadow-md"
-        >
-          Serving Milltown and surrounding areas, we specialize in landscape design, installation, and lawn repair—delivering expert craftsmanship, attention to detail, and superior site cleanup.
-        </motion.p>
 
          {/* Centered Buttons Side-by-Side */}
         <motion.div

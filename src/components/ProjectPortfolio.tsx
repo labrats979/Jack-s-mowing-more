@@ -41,6 +41,16 @@ export default function ProjectPortfolio() {
     <section id="portfolio" className="py-16 bg-white border-b border-stone-100 text-stone-800 relative grid-dots overflow-hidden">
       <div className="max-w-5xl mx-auto px-6 relative z-10">
         
+        {/* Section Header */}
+        <div className="text-center max-w-xl mx-auto mb-10">
+          <h2 className="font-display font-black text-2xl sm:text-3xl text-stone-900 tracking-tight uppercase mb-2">
+            Interactive Before And After!
+          </h2>
+          <span className="text-stone-500 font-mono text-[11px] uppercase tracking-wider font-bold">
+            (Interaction cost estimated)
+          </span>
+        </div>
+
         {/* Visual Slider Showcase container */}
         <div className="bg-stone-50 rounded-3xl p-6 sm:p-8 border border-stone-200/80 shadow-sm flex flex-col items-center gap-6">
           
@@ -96,12 +106,6 @@ export default function ProjectPortfolio() {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* drag notice helper */}
-          <div className="inline-flex items-center gap-2 text-xs text-stone-500 font-mono p-3 bg-white border border-stone-200 rounded-lg shadow-3xs">
-            <Info className="w-4 h-4 text-emerald-700 shrink-0" />
-            <span>Try dragging over the image below</span>
           </div>
 
         </div>
