@@ -85,25 +85,25 @@ export default function BookingForm({
     e.preventDefault();
     if (!formData.fullName || !formData.email || !formData.phone) return;
 
-    // Save lead to localStorage
+    const selectedServicesList = services
+      .filter((s) => selectedServiceIds.includes(s.id))
+      .map((s) => s.title);
+
+    const newLead = {
+      id: 'lead-' + Date.now(),
+      fullName: formData.fullName,
+      email: formData.email,
+      phone: formData.phone,
+      address: formData.address || 'Not Provided',
+      timeframe: formData.timeframe,
+      notes: formData.notes || '',
+      services: selectedServicesList,
+      createdAt: new Date().toISOString(),
+      status: 'new' // 'new' | 'contacted' | 'completed' | 'archived'
+    };
+
+    // 1. Save lead to localStorage for immediate client-side feedback
     try {
-      const selectedServicesList = services
-        .filter((s) => selectedServiceIds.includes(s.id))
-        .map((s) => s.title);
-
-      const newLead = {
-        id: 'lead-' + Date.now(),
-        fullName: formData.fullName,
-        email: formData.email,
-        phone: formData.phone,
-        address: formData.address || 'Not Provided',
-        timeframe: formData.timeframe,
-        notes: formData.notes || '',
-        services: selectedServicesList,
-        createdAt: new Date().toISOString(),
-        status: 'new' // 'new' | 'contacted' | 'completed' | 'archived'
-      };
-
       const existingLeadsStr = localStorage.getItem('jacks_booking_leads');
       const existingLeads = existingLeadsStr ? JSON.parse(existingLeadsStr) : [];
       const updatedLeads = [newLead, ...existingLeads];
@@ -114,6 +114,22 @@ export default function BookingForm({
     } catch (err) {
       console.error('Failed to log booking lead locally', err);
     }
+
+    // 2. POST to persistent server-side bookings API to sync and fire real email notification to Jacks email
+    fetch('/api/bookings', {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ lead: newLead })
+    })
+      .then(res => res.json())
+      .then(data => {
+        console.log("Server synchronized booking and email dispatch outcome:", data);
+      })
+      .catch(err => {
+        console.error("Backend synchronized booking lead dispatch failed:", err);
+      });
 
     // Simulate real local submit
     setSubmitted(true);
@@ -131,8 +147,7 @@ export default function BookingForm({
   };
 
   return (
-    <section id="booking-form" className="py-24 bg-white text-stone-850 relative grid-dots border-b border-stone-100">
-      <div className="absolute inset-0 bg-stone-50/20 pointer-events-none" />
+    <section id="booking-form" className="py-24 bg-white text-stone-850 relative border-b border-stone-100">
       
       <div className="max-w-4xl mx-auto px-6 relative z-10 animate-fade-in">
         
@@ -282,7 +297,7 @@ export default function BookingForm({
                           name="address"
                           value={formData.address}
                           onChange={handleChange}
-                          placeholder="Lake Oswego, Oregon"
+                          placeholder="Milltown, New Jersey"
                           className="w-full pl-10 pr-4 py-3 rounded-xl bg-white text-stone-900 border border-stone-250 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600/30 focus:outline-none text-sm"
                         />
                       </div>

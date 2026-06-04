@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Lock, Unlock, ShieldAlert, Mail, Phone, MapPin, Calendar, 
   Trash2, Plus, Edit3, Check, X, Sparkles, RefreshCw, Layers, Award,
-  Image as ImageIcon, Eye, Upload, Send, Clock, CheckCircle2, Archive
+  Image as ImageIcon, Eye, Upload, Send, Clock, CheckCircle2, Archive, Star
 } from 'lucide-react';
 import { Service } from '../types';
 
@@ -227,7 +227,16 @@ export default function AdminDashboard({
   });
   const [errorMsg, setErrorMsg] = useState('');
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [activeTab, setActiveTab] = useState<'leads' | 'services' | 'photos'>('leads');
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'leads' | 'services' | 'photos' | 'email' | 'reviews'>('leads');
+
+  // Email Notification States
+  const [recipientEmail, setRecipientEmail] = useState('jacks.mowing.and.more1@gmail.com');
+  const [smtpUser, setSmtpUser] = useState('jacks.mowing.and.more1@gmail.com');
+  const [smtpPass, setSmtpPass] = useState('');
+  const [emailSettingsSavedStatus, setEmailSettingsSavedStatus] = useState('');
+  const [testEmailSending, setTestEmailSending] = useState(false);
+  const [testEmailStatus, setTestEmailStatus] = useState('');
   
   // Service Creator/Editor States
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -406,15 +415,29 @@ export default function AdminDashboard({
     reader.readAsDataURL(file);
   };
 
-  // Load leads from LocalStorage
+  // Load email configuration from the server
+  const loadEmailConfig = () => {
+    fetch('/api/email-config')
+      .then(res => res.json())
+      .then(data => {
+        if (data.recipientEmail) setRecipientEmail(data.recipientEmail);
+        if (data.smtpUser) setSmtpUser(data.smtpUser);
+        // Do not update SMTP password state so it is masked
+      })
+      .catch(err => console.error("Could not load email configuration:", err));
+  };
+
+  // Load leads from LocalStorage and synchronise with the backend server
   const loadLeadsInput = () => {
     try {
       const saved = localStorage.getItem('jacks_booking_leads');
+      let localLeads: Lead[] = [];
       if (saved) {
-        setLeads(JSON.parse(saved));
+        localLeads = JSON.parse(saved);
+        setLeads(localLeads);
       } else {
         // Create 2 mock initial leads if empty so the dashboard has something beautiful to show!
-        const initialLeads: Lead[] = [
+        localLeads = [
           {
             id: 'lead-1',
             fullName: 'Sarah Jenkins',
@@ -440,9 +463,39 @@ export default function AdminDashboard({
             status: 'contacted'
           }
         ];
-        localStorage.setItem('jacks_booking_leads', JSON.stringify(initialLeads));
-        setLeads(initialLeads);
+        localStorage.setItem('jacks_booking_leads', JSON.stringify(localLeads));
+        setLeads(localLeads);
       }
+
+      // Query the server for ground truth
+      fetch('/api/bookings')
+        .then(res => res.json())
+        .then(serverLeads => {
+          if (Array.isArray(serverLeads) && serverLeads.length > 0) {
+            // Merge both: we prioritize serverLeads as ground truth but include any unique local leads
+            const merged = [...serverLeads];
+            localLeads.forEach((localL) => {
+              const matched = merged.some(sl => sl.id === localL.id || (sl.fullName === localL.fullName && sl.createdAt === localL.createdAt));
+              if (!matched) {
+                merged.push(localL);
+              }
+            });
+            // Sort by creation time
+            merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            setLeads(merged);
+            localStorage.setItem('jacks_booking_leads', JSON.stringify(merged));
+          } else if (localLeads.length > 0) {
+            // Backup/Seed the server since it has 0 leads
+            fetch('/api/bookings/save-all', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ leads: localLeads })
+            }).catch(e => console.error(e));
+          }
+        })
+        .catch(err => {
+          console.error("Could not reach bookings API server, utilizing local state:", err);
+        });
     } catch (e) {
       console.error(e);
     }
@@ -461,13 +514,27 @@ export default function AdminDashboard({
     }
   };
 
+  const loadReviewsInput = () => {
+    fetch('/api/reviews')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setReviews(data);
+        }
+      })
+      .catch(err => console.error("Could not load reviews under Admin Panel:", err));
+  };
+
   useEffect(() => {
     loadLeadsInput();
     loadVisuals();
+    loadEmailConfig();
+    loadReviewsInput();
     // Handle state update when a new lead or photo is saved in real-time
     const handleStorageChange = () => {
       loadLeadsInput();
       loadVisuals();
+      loadReviewsInput();
     };
     window.addEventListener('storage', handleStorageChange);
     return () => {
@@ -500,6 +567,15 @@ export default function AdminDashboard({
     );
     setLeads(nextLeads);
     localStorage.setItem('jacks_booking_leads', JSON.stringify(nextLeads));
+
+    // Save persistently to server
+    fetch('/api/bookings/save-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leads: nextLeads })
+    })
+      .then(res => res.json())
+      .catch(err => console.error("Failed to update status on server:", err));
   };
 
   const handleDeleteLead = (id: string) => {
@@ -507,6 +583,15 @@ export default function AdminDashboard({
       const nextLeads = leads.filter((l) => l.id !== id);
       setLeads(nextLeads);
       localStorage.setItem('jacks_booking_leads', JSON.stringify(nextLeads));
+
+      // Save persistently to server
+      fetch('/api/bookings/save-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leads: nextLeads })
+      })
+        .then(res => res.json())
+        .catch(err => console.error("Failed to delete lead from server:", err));
     }
   };
 
@@ -514,6 +599,15 @@ export default function AdminDashboard({
     if (window.confirm('Delete every single lead submission in this buffer?')) {
       setLeads([]);
       localStorage.setItem('jacks_booking_leads', JSON.stringify([]));
+
+      // Save persistently to server
+      fetch('/api/bookings/save-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leads: [] })
+      })
+        .then(res => res.json())
+        .catch(err => console.error("Failed to clear leads from server:", err));
     }
   };
 
@@ -788,6 +882,36 @@ export default function AdminDashboard({
                         }`}
                       >
                         Photos & Website Decor
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveTab('email');
+                          setEditingId(null);
+                          setIsAdding(false);
+                          setEditingVisualsId(null);
+                        }}
+                        className={`px-4 py-2 rounded-lg font-mono text-xs font-bold tracking-wider uppercase transition-all cursor-pointer ${
+                          activeTab === 'email'
+                            ? 'bg-black text-white'
+                            : 'bg-white border border-stone-200 hover:bg-stone-50 text-stone-600'
+                        }`}
+                      >
+                        Email Alerts Settings
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveTab('reviews');
+                          setEditingId(null);
+                          setIsAdding(false);
+                          setEditingVisualsId(null);
+                        }}
+                        className={`px-4 py-2 rounded-lg font-mono text-xs font-bold tracking-wider uppercase transition-all cursor-pointer ${
+                          activeTab === 'reviews'
+                            ? 'bg-black text-white'
+                            : 'bg-white border border-stone-200 hover:bg-stone-50 text-stone-600'
+                        }`}
+                      >
+                        Reviews Manager ({reviews.length})
                       </button>
                     </div>
 
@@ -1473,6 +1597,278 @@ export default function AdminDashboard({
                             );
                           })}
                         </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'email' && (
+                      <div className="space-y-6 font-sans text-left pb-4">
+                        <div className="border-b border-stone-200 pb-4">
+                          <h5 className="font-display font-bold text-stone-900 text-sm uppercase flex items-center gap-2">
+                            <Mail className="w-4 h-4 text-emerald-650" />
+                            Email Alerts Configuration & Test Deck
+                          </h5>
+                          <p className="text-stone-500 text-[11px] font-light mt-1">
+                            Configure automatic email forwarding for customer consultation quotes so they route directly to your inbox.
+                          </p>
+                        </div>
+
+                        {/* Informational Guidance Panel */}
+                        <div className="bg-emerald-50/20 border border-emerald-250 p-4 rounded-xl text-stone-700 text-xs space-y-3.5 leading-relaxed">
+                          <p className="font-bold text-emerald-900 flex items-center gap-1.5 font-display text-xs uppercase">
+                            💡 Setup Guidance for Google App Passwords
+                          </p>
+                          <div className="space-y-1.5 font-light text-stone-650">
+                            <p>To authorize this lander to safely forward leads using your Gmail account, you must generate a secure Google App Password on Google:</p>
+                            <ol className="list-decimal list-inside pl-1 space-y-1 text-[11px]">
+                              <li>Go to your Google Account (myaccount.google.com)</li>
+                              <li>In the search box, find or type "App Passwords" (or enable 2-Step Verification first under Security tab)</li>
+                              <li>Select App name as "Other (Custom Name)" and input "Jacks Landscape Mowing"</li>
+                              <li>Click Generate to reveal the 16-character secure code (e.g. "xxxx xxxx xxxx xxxx")</li>
+                              <li>Paste that 16-character code into the SMTP password field below!</li>
+                            </ol>
+                          </div>
+                        </div>
+
+                        <form onSubmit={(e) => {
+                          e.preventDefault();
+                          setEmailSettingsSavedStatus('Saving settings on server...');
+                          fetch('/api/email-config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ recipientEmail, smtpUser, smtpPass })
+                          })
+                            .then(res => res.json())
+                            .then(data => {
+                              if (data.success) {
+                                setEmailSettingsSavedStatus('Settings saved successfully!');
+                                loadEmailConfig();
+                                setTimeout(() => setEmailSettingsSavedStatus(''), 4000);
+                              } else {
+                                setEmailSettingsSavedStatus('Failed to update: ' + data.error);
+                              }
+                            })
+                            .catch(err => {
+                              setEmailSettingsSavedStatus('Failed to update configurations: ' + err.message);
+                            });
+                        }} className="space-y-4">
+                          
+                          {/* Destination Recipient */}
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-stone-700 block text-left">Notification Destination Email (Receiver Email)</label>
+                            <input
+                              type="email"
+                              required
+                              value={recipientEmail}
+                              onChange={(e) => setRecipientEmail(e.target.value)}
+                              placeholder="jacks.mowing.and.more1@gmail.com"
+                              className="w-full px-3.5 py-2.5 bg-white border border-stone-250 focus:border-emerald-650 focus:outline-none rounded-xl text-xs font-mono text-stone-900 focus:ring-1 focus:ring-emerald-600/30"
+                            />
+                            <p className="text-[10px] text-stone-500 font-light font-sans">Every completed booking form submission will be instantly forwarded/copied to this recipient.</p>
+                          </div>
+
+                          {/* SMTP User Email */}
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-stone-700 block text-left">SMTP Send-From Gmail Address (Sender Email)</label>
+                            <input
+                              type="email"
+                              required
+                              value={smtpUser}
+                              onChange={(e) => setSmtpUser(e.target.value)}
+                              placeholder="jacks.mowing.and.more1@gmail.com"
+                              className="w-full px-3.5 py-2.5 bg-white border border-stone-250 focus:border-emerald-650 focus:outline-none rounded-xl text-xs font-mono text-stone-900 focus:ring-1 focus:ring-emerald-600/30"
+                            />
+                            <p className="text-[10px] text-stone-500 font-light font-sans">The Gmail address used by Nodemailer to authenticate and transmit the email notifications.</p>
+                          </div>
+
+                          {/* SMTP Password */}
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-stone-700 block text-left">Google App Password (16-Character Secure Code)</label>
+                            <input
+                              type="password"
+                              value={smtpPass}
+                              onChange={(e) => setSmtpPass(e.target.value)}
+                              placeholder="••••••••••••"
+                              className="w-full px-3.5 py-2.5 bg-white border border-stone-250 focus:border-emerald-650 focus:outline-none rounded-xl text-xs font-mono text-stone-900 tracking-widest focus:ring-1 focus:ring-emerald-600/30"
+                            />
+                            <p className="text-[10px] text-stone-500 font-light font-sans">For security, existing passwords are masked as dots. This key persists strictly in backend files and is never exposed to visitors.</p>
+                          </div>
+
+                          {/* Status and Action bar */}
+                          <div className="pt-3 border-t border-stone-100 flex items-center justify-between gap-4">
+                            <span className="text-[11px] font-mono text-emerald-705 font-bold">
+                              {emailSettingsSavedStatus}
+                            </span>
+                            <button
+                              type="submit"
+                              className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 border border-emerald-700 text-white rounded-xl text-xs font-mono font-bold transition-all uppercase tracking-wider cursor-pointer shadow-xs"
+                            >
+                              Save Mail Settings
+                            </button>
+                          </div>
+
+                        </form>
+
+                        {/* Live Testing Facility Card */}
+                        <div className="bg-stone-50 border border-stone-200 p-5 rounded-2xl relative space-y-3">
+                          <h6 className="font-display font-bold text-xs text-stone-900 uppercase">
+                            📬 SMTP Diagnostic & Layout Visualizer
+                          </h6>
+                          <p className="text-[11px] text-stone-500 leading-normal font-light">
+                            Generate a fully-styled simulation quote notification and dispatch it instantly to the current system receiver email using your authentication tokens.
+                          </p>
+                          
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                            <p className="text-[10px] text-stone-605 font-mono font-bold break-all max-w-[70%] text-left">
+                              {testEmailStatus}
+                            </p>
+                            <button
+                              type="button"
+                              disabled={testEmailSending}
+                              onClick={() => {
+                                setTestEmailSending(true);
+                                setTestEmailStatus('Compiling mock lead and forwarding via Gmail...');
+                                
+                                const testLead = {
+                                  id: 'test-lead-' + Date.now(),
+                                  fullName: "Arthur Dent (Test)",
+                                  email: "arthur@galaxy.org",
+                                  phone: "+1 (555) 420-2026",
+                                  address: "742 Evergreen Meadows (Diagnostic Test)",
+                                  timeframe: "Immediate (< 2 weeks)",
+                                  notes: "This is a real SMTP email notification check to ensure that the landscape quote forwarding system is operating perfectly.",
+                                  services: ["Landscape Design & Installation", "Professional Lawn Restoration", "Weed Removal"],
+                                  createdAt: new Date().toISOString(),
+                                  status: 'new'
+                                };
+
+                                fetch('/api/bookings', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ lead: testLead })
+                                })
+                                  .then(res => res.json())
+                                  .then(data => {
+                                    setTestEmailSending(false);
+                                    if (data.emailSent) {
+                                      setTestEmailStatus('🎉 Diagnostic email dispatched successfully! Please check your inbox.');
+                                    } else {
+                                      setTestEmailStatus('⚠️ Lead saved on server, but mail skipped: ' + (data.emailError || 'Auth error'));
+                                    }
+                                    loadLeadsInput(); // Refresh lead queue
+                                  })
+                                  .catch(err => {
+                                    setTestEmailSending(false);
+                                    setTestEmailStatus('❌ Error: ' + err.message);
+                                  });
+                              }}
+                              className={`px-4.5 py-2.5 rounded-lg border border-stone-300 text-xs font-mono font-bold hover:bg-stone-100 transition-all cursor-pointer ${
+                                testEmailSending ? 'opacity-50 pointer-events-none' : ''
+                              }`}
+                            >
+                              {testEmailSending ? 'Dispatching...' : 'Send Live Test Email'}
+                            </button>
+                          </div>
+                        </div>
+
+                      </div>
+                    )}
+
+                    {activeTab === 'reviews' && (
+                      <div className="space-y-6 font-sans text-left pb-4">
+                        <div className="border-b border-stone-200 pb-4">
+                          <h5 className="font-display font-bold text-stone-900 text-sm uppercase flex items-center gap-2">
+                            <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                            Client Reviews Manager & Moderation Desk
+                          </h5>
+                          <p className="text-stone-500 text-[11px] font-light mt-1">
+                            Moderator list of all testimonials saved directly on this web portal. Deleting reviews here wipes them permanently from both the front-end carousels and backend persistent storage.
+                          </p>
+                        </div>
+
+                        {reviews.length === 0 ? (
+                          <div className="py-16 text-center border border-dashed border-stone-200 rounded-xl bg-white shadow-3xs">
+                            <Star className="w-8 h-8 text-stone-300 mx-auto mb-2" />
+                            <p className="text-stone-650 text-xs font-semibold font-sans">No customer reviews stored in the database yet.</p>
+                            <p className="text-stone-400 text-[10px] mt-1 font-mono">Use the Testimonial form on the homepage to publish a review.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4 max-h-[550px] overflow-y-auto pr-1">
+                            {reviews.map((review) => (
+                              <div 
+                                key={review.id}
+                                className="p-4.5 bg-white border border-stone-200 rounded-xl flex flex-col sm:flex-row sm:items-start justify-between gap-4 hover:border-emerald-250 transition-all shadow-3xs"
+                              >
+                                <div className="space-y-2.5 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-display font-bold text-xs text-stone-900 uppercase">
+                                      {review.author}
+                                    </span>
+                                    <span className="text-stone-300 text-xs font-light font-mono">|</span>
+                                    <span className="text-[10px] text-stone-500 font-mono">
+                                      {review.location}
+                                    </span>
+                                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-stone-100 text-emerald-805 font-mono font-semibold">
+                                      {review.projectType}
+                                    </span>
+                                    <span className="text-stone-300 text-xs font-light font-mono">|</span>
+                                    <span className="text-[10px] text-stone-400 font-mono">
+                                      {review.date || 'Just now'}
+                                    </span>
+                                  </div>
+
+                                  {/* Star row */}
+                                  <div className="flex gap-0.5">
+                                    {Array.from({ length: 5 }).map((_, i) => {
+                                      const isGold = i < (review.rating || 5);
+                                      return (
+                                        <Star 
+                                          key={i} 
+                                          className={`w-3.5 h-3.5 ${isGold ? 'fill-amber-400 text-amber-400' : 'text-stone-200'}`} 
+                                        />
+                                      );
+                                    })}
+                                  </div>
+
+                                  <p className="text-stone-650 text-xs italic font-serif leading-relaxed">
+                                    "{review.content}"
+                                  </p>
+                                </div>
+
+                                <div className="shrink-0 pt-0.5">
+                                  <button
+                                    onClick={() => {
+                                      if (window.confirm(`Are you sure you want to permanently delete ${review.author}'s review?`)) {
+                                        const updatedReviews = reviews.filter(r => r.id !== review.id);
+                                        setReviews(updatedReviews);
+                                        
+                                        fetch('/api/reviews/save-all', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ reviews: updatedReviews })
+                                        })
+                                          .then(res => res.json())
+                                          .then(data => {
+                                            if (data.success) {
+                                              loadReviewsInput();
+                                            }
+                                          })
+                                          .catch(err => {
+                                            console.error("Failed to delete review:", err);
+                                            alert("Error updating database!");
+                                          });
+                                      }
+                                    }}
+                                    className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-250 text-red-700 font-mono text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                                    title="Permanently Delete Review"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 

@@ -75,7 +75,7 @@ export default function GoogleChatWidget() {
 
   // Suggested starter prompts
   const suggestedQuestions = [
-    "How can I revive compacted clay soil in my Oregon lawn?",
+    "How can I revive compacted clay soil in my Milltown lawn?",
     "What services does Jack propose for weed removal?",
     "What is the cost of leaf cleanup and hedge trimming?",
     "How do I request an onsite fixed-price estimate?"
@@ -184,7 +184,7 @@ export default function GoogleChatWidget() {
                     Anthany (AI Advisor)
                   </h4>
                   <span className="text-[9px] font-mono text-emerald-700 font-medium tracking-wide block">
-                    OREGON HORTICULTURAL COUNSEL
+                    NEW JERSEY HORTICULTURAL COUNSEL
                   </span>
                 </div>
               </div>

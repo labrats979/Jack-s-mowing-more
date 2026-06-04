@@ -7,9 +7,9 @@ export const INITIAL_PROJECTS: Project[] = [
     category: ProjectCategory.PLANTING,
     description: 'A complete perennial overhaul including structural evergreen hedges, a custom curved entry walkway, layered lavender drifts, and premium soil building to ensure multi-season color and local bee support.',
     image: '/src/assets/images/garden_beds_1779327341663.png',
-    location: 'West Linn, OR',
+    location: 'Milltown, NJ',
     duration: '4 Days',
-    keyMaterials: ['English Lavender', 'Japanese Boxwood Hedges', 'Cedar Bark Mulch', 'Oregon Basalt Pavers'],
+    keyMaterials: ['English Lavender', 'Japanese Boxwood Hedges', 'Cedar Bark Mulch', 'NJ Bluestone Pavers'],
     keyHighlights: ['Multi-season blooms', 'Bee & pollinator friendly', 'Drought-tolerant native choices']
   },
   {
@@ -18,7 +18,7 @@ export const INITIAL_PROJECTS: Project[] = [
     category: ProjectCategory.HARDSCAPING,
     description: 'A masterfully constructed natural slate terrace. Features an integrated heavy-timber basalt fire pit, high-walled concrete planters for architectural height, and twilight low-voltage path lighting.',
     image: '/src/assets/images/hardscape_patio_1779327358083.png',
-    location: 'Lake Oswego, OR',
+    location: 'Milltown, NJ',
     duration: '2 Weeks',
     keyMaterials: ['Charcoal Slate Flagstone', 'Cast Concrete Retaining Walls', 'Basalt Fire Ring', 'Low-voltage LED brass risers'],
     keyHighlights: ['Seamless indoor-outdoor grade transition', 'Architectural lighting array', 'Integrated conversational fire-pit seating']
@@ -29,7 +29,7 @@ export const INITIAL_PROJECTS: Project[] = [
     category: ProjectCategory.AQUEOUS,
     description: 'A quiet, recirculating aquatic ecosystem incorporating multiple stone drop cascades, natural biological filtration, water lilies, and perimeter planting to block wind and introduce tranquility.',
     image: '/src/assets/images/water_feature_1779327375070.png',
-    location: 'Portland Hills, OR',
+    location: 'Milltown, NJ',
     duration: '9 Days',
     keyMaterials: ['River Basalt Boulders', 'EPDM Eco-Liner', 'Japanese Maple Specimen', 'Water Lilies & Marsh Ferns'],
     keyHighlights: ['Acoustically micro-tuned waterfall steps', 'Low-maintenance biofiltration', 'Perennial wetland edge integration']
@@ -40,7 +40,7 @@ export const INITIAL_TESTIMONIALS: Testimonial[] = [
   {
     id: 'test-1',
     author: 'Eleanor Vance',
-    location: 'Lake Oswego Resident',
+    location: 'Milltown Resident',
     rating: 5,
     projectType: 'Hardscape & Fire Pit Terrace',
     content: 'The level of masonry and attention to detail surpassed everything we hoped for. The team aligned the stone joint lines perfectly with our living room windows, making the transition outside feel absolutely natural. Outstanding team.',
@@ -49,7 +49,7 @@ export const INITIAL_TESTIMONIALS: Testimonial[] = [
   {
     id: 'test-2',
     author: 'Dr. Marcus Aris',
-    location: 'West Linn Property Owner',
+    location: 'Milltown Property Owner',
     rating: 5,
     projectType: 'Horticulture & Front Border Walkway',
     content: 'They treated our soil like gold and replaced our dry clay with lush, organic planting beds. The custom boxwood layers and seasonal lavender flowers attract bees and look brilliant in the morning light.',
@@ -58,7 +58,7 @@ export const INITIAL_TESTIMONIALS: Testimonial[] = [
   {
     id: 'test-3',
     author: 'Clara & Thomas Vance',
-    location: 'Portland Hills Homeowners',
+    location: 'Milltown Homeowners',
     rating: 5,
     projectType: 'Zen Waterfall & Pond Cascade',
     content: 'The custom waterfall they tuned for us brings the perfect calming backdrop to our morning coffee. They handled the excavation, the eco-liners, and the specimen Japanese Maples with pure expertise.',
