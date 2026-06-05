@@ -595,6 +595,44 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
     }
   });
 
+  // API Route for Fetching Persistent Brand Logo Customizations
+  app.get("/api/brand-logo", (req, res) => {
+    try {
+      const dbPath = path.join(process.cwd(), "src", "data", "brand_logo_db.json");
+      if (!fs.existsSync(dbPath)) {
+        return res.json({
+          logoType: "svg",
+          imageUrl: "",
+          svgTextTop: "Jack's",
+          svgTextBottom: "Mowing & More",
+          svgColor: "#dc2626"
+        });
+      }
+      const data = fs.readFileSync(dbPath, "utf-8");
+      res.json(JSON.parse(data));
+    } catch (error: any) {
+      console.error("Failed to read brand logo database:", error);
+      res.status(500).json({ error: "Failed to retrieve brand logo configuration." });
+    }
+  });
+
+  // API Route for Saving Persistent Brand Logo Customizations
+  app.post("/api/brand-logo", (req, res) => {
+    try {
+      const config = req.body;
+      const dbPath = path.join(process.cwd(), "src", "data", "brand_logo_db.json");
+      const dirPath = path.dirname(dbPath);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+      fs.writeFileSync(dbPath, JSON.stringify(config, null, 2), "utf-8");
+      res.json({ success: true, ...config });
+    } catch (error: any) {
+      console.error("Failed to save brand logo configuration database:", error);
+      res.status(500).json({ error: "Failed to persist brand logo configuration." });
+    }
+  });
+
   // API Route for Fetching Persistent Interactive Portfolio Slider Config
   app.get("/api/portfolio-slider", (req, res) => {
     try {

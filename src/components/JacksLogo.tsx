@@ -3,9 +3,38 @@ import React from 'react';
 interface JacksLogoProps {
   className?: string;
   size?: number; // width and height in px
+  logoType?: 'svg' | 'image';
+  imageUrl?: string;
+  svgTextTop?: string;
+  svgTextBottom?: string;
+  svgColor?: string;
 }
 
-export default function JacksLogo({ className = '', size = 120 }: JacksLogoProps) {
+export default function JacksLogo({ 
+  className = '', 
+  size = 120,
+  logoType = 'svg',
+  imageUrl = '',
+  svgTextTop = "Jack's",
+  svgTextBottom = "Mowing & More",
+  svgColor = '#dc2626'
+}: JacksLogoProps) {
+  if (logoType === 'image' && imageUrl) {
+    return (
+      <div 
+        className={`relative flex items-center justify-center shrink-0 select-none overflow-hidden ${className}`}
+        style={{ width: size, height: size }}
+      >
+        <img 
+          src={imageUrl} 
+          alt="Brand Logo" 
+          className="w-full h-full object-contain" 
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    );
+  }
+
   return (
     <div 
       className={`relative flex items-center justify-center shrink-0 select-none ${className}`}
@@ -48,7 +77,7 @@ export default function JacksLogo({ className = '', size = 120 }: JacksLogoProps
             textAnchor="middle" 
             className="text-[26px] font-black tracking-tight"
           >
-            Jack's
+            {svgTextTop}
           </textPath>
         </text>
 
@@ -59,7 +88,7 @@ export default function JacksLogo({ className = '', size = 120 }: JacksLogoProps
             textAnchor="middle" 
             className="text-[17px] font-bold tracking-normal"
           >
-            Mowing & More
+            {svgTextBottom}
           </textPath>
         </text>
 
@@ -86,10 +115,10 @@ export default function JacksLogo({ className = '', size = 120 }: JacksLogoProps
           {/* Grass collection bag or rear deck extension (black) */}
           <path d="M 72 104 L 86 102 L 80 114 L 68 112 Z" fill="#1e293b" stroke="#000" strokeWidth="1" />
 
-          {/* Lawnmower main cutting deck (Red) */}
+          {/* Lawnmower main cutting deck (customizable color) */}
           {/* Shiny highlights on mower deck */}
-          <path d="M 76 107 L 138 112 L 135 122 L 74 117 Z" fill="#dc2626" stroke="#7f1d1d" strokeWidth="2.5" />
-          <path d="M 79 109 L 134 113 L 132 117 L 77 114 Z" fill="#ef4444" />
+          <path d="M 76 107 L 138 112 L 135 122 L 74 117 Z" fill={svgColor} stroke="#7f1d1d" strokeWidth="2.5" />
+          <path d="M 79 109 L 134 113 L 132 117 L 77 114 Z" fill={svgColor} className="opacity-90" />
           
           {/* Chrome side trim/exhaust pipe */}
           <path d="M 92 110 L 124 112" stroke="#cbd5e1" strokeWidth="1.5" strokeLinecap="round" />

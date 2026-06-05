@@ -38,6 +38,65 @@ export default function App() {
       });
   }, []);
 
+  // Brand Logo dynamic config state
+  const [logoConfig, setLogoConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem('jacks_logo_config');
+      return saved ? JSON.parse(saved) : {
+        logoType: 'svg',
+        imageUrl: '',
+        svgTextTop: "Jack's",
+        svgTextBottom: "Mowing & More",
+        svgColor: '#dc2626'
+      };
+    } catch (_) {
+      return {
+        logoType: 'svg',
+        imageUrl: '',
+        svgTextTop: "Jack's",
+        svgTextBottom: "Mowing & More",
+        svgColor: '#dc2626'
+      };
+    }
+  });
+
+  // Fetch the brand logo configuration from the server on mount
+  useEffect(() => {
+    fetch('/api/brand-logo')
+      .then(res => {
+        if (!res.ok) throw new Error('Brand logo fetch failed');
+        return res.json();
+      })
+      .then(data => {
+        if (data && data.logoType) {
+          setLogoConfig(data);
+          localStorage.setItem('jacks_logo_config', JSON.stringify(data));
+        }
+      })
+      .catch(err => {
+        console.warn('Could not fetch server-side brand logo config, using defaults:', err);
+      });
+  }, []);
+
+  // Save brand logo configuration helper
+  const handleSaveLogoConfig = (newConfig: typeof logoConfig) => {
+    setLogoConfig(newConfig);
+    localStorage.setItem('jacks_logo_config', JSON.stringify(newConfig));
+
+    fetch('/api/brand-logo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newConfig)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Logo config save failed');
+      return res.json();
+    })
+    .catch(err => {
+      console.error('Server persistent logo config save failed:', err);
+    });
+  };
+
   // Handle saving the cover photo to both client state/localStorage and backend database
   const handleSaveCoverPhoto = (url: string) => {
     setCoverPhoto(url);
@@ -149,6 +208,7 @@ export default function App() {
         onSelectServicePage={handleSelectServicePage}
         onBackToHome={handleBackToHome}
         currentActiveView={currentActiveView}
+        logoConfig={logoConfig}
       />
 
       {/* Conditionally Render Content based on Routing State */}
@@ -216,13 +276,20 @@ export default function App() {
             {/* Branding Column */}
             <div className="md:col-span-2 space-y-4">
               <div className="flex items-center gap-3">
-                <JacksLogo size={52} />
+                <JacksLogo 
+                  size={52} 
+                  logoType={logoConfig.logoType}
+                  imageUrl={logoConfig.imageUrl}
+                  svgTextTop={logoConfig.svgTextTop}
+                  svgTextBottom={logoConfig.svgTextBottom}
+                  svgColor={logoConfig.svgColor}
+                />
                 <div className="flex flex-col items-start">
                   <div className="flex items-center gap-1.5 text-stone-850">
-                    <span className="font-serif font-black text-xl tracking-tight">Jack's</span>
+                    <span className="font-serif font-black text-xl tracking-tight">{logoConfig.svgTextTop}</span>
                   </div>
                   <span className="font-display font-bold text-emerald-700 text-[10px] tracking-widest uppercase pb-1">
-                    Mowing & More
+                    {logoConfig.svgTextBottom}
                   </span>
                 </div>
               </div>
@@ -266,7 +333,7 @@ export default function App() {
           {/* Sub-footer metadata copyright */}
           <div className="border-t border-stone-300/60 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px]">
             <p className="font-light">
-              © {new Date().getFullYear()} Jack's Mowing & More. All rights reserved.
+              © {new Date().getFullYear()} {logoConfig.svgTextTop} {logoConfig.svgTextBottom}. All rights reserved.
             </p>
           </div>
 
@@ -280,6 +347,8 @@ export default function App() {
         onRestoreDefaults={handleRestoreDefaults}
         coverPhoto={coverPhoto}
         onSaveCoverPhoto={handleSaveCoverPhoto}
+        logoConfig={logoConfig}
+        onSaveLogoConfig={handleSaveLogoConfig}
       />
 
     </div>

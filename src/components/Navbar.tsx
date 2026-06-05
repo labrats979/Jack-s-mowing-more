@@ -9,6 +9,13 @@ interface NavbarProps {
   onSelectServicePage: (serviceId: string) => void;
   onBackToHome: () => void;
   currentActiveView: string;
+  logoConfig?: {
+    logoType: 'svg' | 'image';
+    imageUrl: string;
+    svgTextTop: string;
+    svgTextBottom: string;
+    svgColor: string;
+  };
 }
 
 export default function Navbar({
@@ -16,8 +23,16 @@ export default function Navbar({
   services = [],
   onSelectServicePage,
   onBackToHome,
-  currentActiveView
+  currentActiveView,
+  logoConfig
 }: NavbarProps) {
+  const lConfig = logoConfig || {
+    logoType: 'svg' as const,
+    imageUrl: '',
+    svgTextTop: "Jack's",
+    svgTextBottom: "Mowing & More",
+    svgColor: '#dc2626'
+  };
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileServicesOpen, setMobileServicesOpen] = useState(false);
   const [desktopServicesOpen, setDesktopServicesOpen] = useState(false);
@@ -48,10 +63,18 @@ export default function Navbar({
           onClick={onBackToHome}
           className="flex items-center gap-3 select-none group focus:outline-none text-left cursor-pointer bg-transparent border-none p-0"
         >
-          <JacksLogo size={48} className="transform group-hover:scale-105 transition-transform duration-350" />
+          <JacksLogo 
+            size={48} 
+            className="transform group-hover:scale-105 transition-transform duration-350"
+            logoType={lConfig.logoType}
+            imageUrl={lConfig.imageUrl}
+            svgTextTop={lConfig.svgTextTop}
+            svgTextBottom={lConfig.svgTextBottom}
+            svgColor={lConfig.svgColor}
+          />
           <div className="flex flex-col">
             <span className="font-serif font-black text-xl tracking-tight text-stone-900 leading-none">
-              Jack's Mowing & More
+              {lConfig.svgTextTop} {lConfig.svgTextBottom}
             </span>
           </div>
         </button>

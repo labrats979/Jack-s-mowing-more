@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Service } from '../types';
 import { uploadBase64ToStorage } from '../firebaseStorage';
+import JacksLogo from './JacksLogo';
 
 const DEFAULT_VISUALS: Record<string, { beforeImg: string; afterImg: string; beforeDesc: string; afterDesc: string }> = {
   'service-l-mowing': {
@@ -199,6 +200,14 @@ interface AdminDashboardProps {
   onRestoreDefaults: () => void;
   coverPhoto?: string;
   onSaveCoverPhoto?: (url: string) => void;
+  logoConfig?: {
+    logoType: 'svg' | 'image';
+    imageUrl: string;
+    svgTextTop: string;
+    svgTextBottom: string;
+    svgColor: string;
+  };
+  onSaveLogoConfig?: (config: any) => void;
 }
 
 interface Lead {
@@ -219,7 +228,9 @@ export default function AdminDashboard({
   onSaveServices,
   onRestoreDefaults,
   coverPhoto,
-  onSaveCoverPhoto
+  onSaveCoverPhoto,
+  logoConfig,
+  onSaveLogoConfig
 }: AdminDashboardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [password, setPassword] = useState('');
@@ -266,6 +277,90 @@ export default function AdminDashboard({
   });
 
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+
+  const handleUploadLogoFile = (file: File) => {
+    setIsUploadingLogo(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result && typeof event.target.result === 'string') {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 500;
+          const MAX_HEIGHT = 500;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL('image/png', 0.90);
+
+            // Attempt to upload to persistent Firebase Storage container first
+            const uniqueName = `branding/logo_${Date.now()}_${Math.floor(Math.random() * 1000)}.png`;
+            uploadBase64ToStorage(compressedDataUrl, uniqueName)
+              .then(downloadUrl => {
+                if (onSaveLogoConfig && logoConfig) {
+                  onSaveLogoConfig({
+                    ...logoConfig,
+                    imageUrl: downloadUrl
+                  });
+                }
+              })
+              .catch(err => {
+                console.warn('Firebase Storage brand logo upload failed, trying local disk:', err);
+                return fetch('/api/upload-image', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ base64: compressedDataUrl, fileName: file.name })
+                })
+                .then(res => {
+                  if (!res.ok) throw new Error('File upload script failed');
+                  return res.json();
+                })
+                .then(data => {
+                  if (data.imageUrl && onSaveLogoConfig && logoConfig) {
+                    onSaveLogoConfig({
+                      ...logoConfig,
+                      imageUrl: data.imageUrl
+                    });
+                  }
+                });
+              })
+              .catch(finalErr => {
+                console.error('All uploader attempts failed, caching as base64 asset:', finalErr);
+                if (onSaveLogoConfig && logoConfig) {
+                  onSaveLogoConfig({
+                    ...logoConfig,
+                    imageUrl: compressedDataUrl
+                  });
+                }
+              })
+              .finally(() => {
+                setIsUploadingLogo(false);
+              });
+          }
+        };
+        img.src = event.target.result;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Interactive slider configuration states
   const [sliderConfig, setSliderConfig] = useState({
@@ -1638,6 +1733,208 @@ export default function AdminDashboard({
                                 </div>
                               </div>
                             </div>
+                          </div>
+                        </div>
+
+                        {/* Dynamic Website Logo and Branding Configuration Card */}
+                        <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 sm:p-6 space-y-5 text-left font-sans mb-8">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200 pb-3">
+                            <div>
+                              <h6 className="font-display font-bold text-sm text-stone-900 uppercase flex items-center gap-2">
+                                <Award className="w-4 h-4 text-emerald-700 font-bold" />
+                                Website Brand Logo &amp; Name
+                              </h6>
+                              <p className="text-stone-550 text-[11px] font-light mt-0.5">
+                                Toggle between our high-fidelity handcrafted vector emblem logo or upload your customized brand logo files. Your preferences build synchronously in navigation bar and footer elements in real-time.
+                              </p>
+                            </div>
+                            {logoConfig && onSaveLogoConfig && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm("Reset your logo layout back to Jack's premium default SVG design?")) {
+                                    onSaveLogoConfig({
+                                      logoType: 'svg',
+                                      imageUrl: '',
+                                      svgTextTop: "Jack's",
+                                      svgTextBottom: "Mowing & More",
+                                      svgColor: '#dc2626'
+                                    });
+                                  }
+                                }}
+                                className="px-2.5 py-1.5 bg-stone-100 text-stone-605 border border-stone-250 hover:bg-stone-200 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
+                              >
+                                Restore Classic Brand
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                            {/* Control form panel */}
+                            <div className="md:col-span-7 space-y-4">
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-mono text-stone-500 block uppercase font-bold tracking-wider">
+                                  Logo Representation Type
+                                </label>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (onSaveLogoConfig && logoConfig) {
+                                        onSaveLogoConfig({ ...logoConfig, logoType: 'svg' });
+                                      }
+                                    }}
+                                    className={`flex-1 py-2 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition-all cursor-pointer border ${
+                                      (logoConfig?.logoType || 'svg') === 'svg'
+                                        ? 'bg-stone-900 border-stone-900 text-white shadow-3xs'
+                                        : 'bg-white border-stone-250 text-stone-600 hover:bg-stone-50'
+                                    }`}
+                                  >
+                                    Vector SVG Emblem
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (onSaveLogoConfig && logoConfig) {
+                                        onSaveLogoConfig({ ...logoConfig, logoType: 'image' });
+                                      }
+                                    }}
+                                    className={`flex-1 py-2 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition-all cursor-pointer border ${
+                                      logoConfig?.logoType === 'image'
+                                        ? 'bg-stone-900 border-stone-900 text-white shadow-3xs'
+                                        : 'bg-white border-stone-250 text-stone-600 hover:bg-stone-50'
+                                    }`}
+                                  >
+                                    Custom Image File
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* CONDITIONAL CONTROLS: SVG REMODELER */}
+                              {(logoConfig?.logoType || 'svg') === 'svg' && (
+                                <div className="space-y-4 p-4.5 bg-white border border-stone-200 rounded-xl shadow-3xs animate-fade-in">
+                                  <span className="text-[9px] font-mono bg-emerald-50 text-emerald-805 px-2 py-0.5 border border-emerald-150 rounded uppercase font-bold tracking-wider block w-max mb-1">
+                                    Vector Customizer Fields
+                                  </span>
+                                  
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-mono text-stone-600 block uppercase font-semibold">Brand Moniker (Top)</label>
+                                      <input
+                                        type="text"
+                                        value={logoConfig?.svgTextTop || "Jack's"}
+                                        onChange={(e) => {
+                                          if (onSaveLogoConfig && logoConfig) {
+                                            onSaveLogoConfig({ ...logoConfig, svgTextTop: e.target.value });
+                                          }
+                                        }}
+                                        className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                        placeholder="e.g. Jack's"
+                                      />
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-mono text-stone-600 block uppercase font-semibold">Specialty Tagline (Bottom)</label>
+                                      <input
+                                        type="text"
+                                        value={logoConfig?.svgTextBottom || "Mowing & More"}
+                                        onChange={(e) => {
+                                          if (onSaveLogoConfig && logoConfig) {
+                                            onSaveLogoConfig({ ...logoConfig, svgTextBottom: e.target.value });
+                                          }
+                                        }}
+                                        className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                        placeholder="e.g. Mowing & More"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-mono text-stone-600 block uppercase font-semibold">Wheel & mower accent color</label>
+                                    <div className="flex items-center gap-3">
+                                      <input
+                                        type="color"
+                                        value={logoConfig?.svgColor || "#dc2626"}
+                                        onChange={(e) => {
+                                          if (onSaveLogoConfig && logoConfig) {
+                                            onSaveLogoConfig({ ...logoConfig, svgColor: e.target.value });
+                                          }
+                                        }}
+                                        className="w-10 h-10 border border-stone-300 rounded cursor-pointer p-0.5 bg-white shrink-0"
+                                      />
+                                      <div className="space-y-0.5 text-left">
+                                        <input
+                                          type="text"
+                                          value={logoConfig?.svgColor || "#dc2626"}
+                                          onChange={(e) => {
+                                            if (onSaveLogoConfig && logoConfig) {
+                                              onSaveLogoConfig({ ...logoConfig, svgColor: e.target.value });
+                                            }
+                                          }}
+                                          className="px-2 py-1 bg-white border border-stone-300 rounded text-stone-800 font-mono text-[11px] focus:outline-none focus:border-emerald-650 w-24"
+                                        />
+                                        <span className="text-[9px] text-stone-400 block">Click square color picker or enter HEX</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* CONDITIONAL CONTROLS: FILE ATTACHED UPLOADER */}
+                              {logoConfig?.logoType === 'image' && (
+                                <div className="space-y-4 p-4.5 bg-white border border-stone-200 rounded-xl shadow-3xs animate-fade-in">
+                                  <span className="text-[9px] font-mono bg-blue-50 text-blue-805 px-2 py-0.5 border border-blue-150 rounded uppercase font-bold tracking-wider block w-max mb-1">
+                                    Brand Graphic File
+                                  </span>
+
+                                  <ImageUploadSelector
+                                    label="Upload Brand Logo File"
+                                    value={logoConfig?.imageUrl || ''}
+                                    onChange={(val) => {
+                                      if (onSaveLogoConfig && logoConfig) {
+                                        onSaveLogoConfig({ ...logoConfig, imageUrl: val });
+                                      }
+                                    }}
+                                    onFileChange={handleUploadLogoFile}
+                                    placeholder="Click to browse your hard drive, drag a PNG/JPG, or paste a URL"
+                                    isUploading={isUploadingLogo}
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Live high-fidelity brand preview panel */}
+                            <div className="md:col-span-5 h-full flex flex-col">
+                              <div className="bg-white border border-stone-200 rounded-xl p-6 flex flex-col items-center justify-center min-h-[220px] shadow-3xs flex-1 text-center relative overflow-hidden">
+                                <div className="absolute top-3 left-3">
+                                  <span className="text-[8px] font-mono bg-stone-900 text-stone-200 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider flex items-center gap-1">
+                                    <Eye className="w-3 h-3 text-emerald-450" />
+                                    Live Logo Preview
+                                  </span>
+                                </div>
+
+                                <div className="p-4 bg-stone-50 border border-dashed border-stone-250 rounded-xl flex items-center justify-center w-36 h-36 mt-4">
+                                  <JacksLogo 
+                                    size={96}
+                                    logoType={logoConfig?.logoType || 'svg'}
+                                    imageUrl={logoConfig?.imageUrl}
+                                    svgTextTop={logoConfig?.svgTextTop}
+                                    svgTextBottom={logoConfig?.svgTextBottom}
+                                    svgColor={logoConfig?.svgColor}
+                                  />
+                                </div>
+
+                                <div className="mt-4 text-center">
+                                  <h6 className="font-serif font-black text-stone-950 text-base leading-none">
+                                    {logoConfig?.svgTextTop || "Jack's"}
+                                  </h6>
+                                  <span className="text-[10px] font-mono text-emerald-700 uppercase font-semibold tracking-widest mt-1 block">
+                                    {logoConfig?.svgTextBottom || "Mowing & More"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
                           </div>
                         </div>
 
