@@ -7,6 +7,36 @@ export default function ProjectPortfolio() {
   const sliderContainer = useRef<HTMLDivElement>(null);
   const [isSliding, setIsSliding] = useState(false);
 
+  // Dynamic slider config
+  const [sliderConfig, setSliderConfig] = useState({
+    beforeImg: "/src/assets/images/garden_beds_1779327341663.png",
+    beforeLabel: "Dry Weedy Clay Lot (Before)",
+    afterImg: "/src/assets/images/garden_beds_1779327341663.png",
+    afterLabel: "Lined Botanical Walkway (After)"
+  });
+
+  // Fetch updated slider values on mount or on state change triggers
+  useEffect(() => {
+    fetch('/api/portfolio-slider')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load portfolio slider');
+        return res.json();
+      })
+      .then(data => {
+        if (data.beforeImg || data.afterImg) {
+          setSliderConfig({
+            beforeImg: data.beforeImg || "/src/assets/images/garden_beds_1779327341663.png",
+            beforeLabel: data.beforeLabel || "Dry Weedy Clay Lot (Before)",
+            afterImg: data.afterImg || "/src/assets/images/garden_beds_1779327341663.png",
+            afterLabel: data.afterLabel || "Lined Botanical Walkway (After)"
+          });
+        }
+      })
+      .catch(err => {
+        console.warn('Could not retrieve custom portfolio slider config, using default:', err);
+      });
+  }, []);
+
   const handleSlideMove = (clientX: number) => {
     if (!sliderContainer.current) return;
     const rect = sliderContainer.current.getBoundingClientRect();
@@ -66,8 +96,8 @@ export default function ProjectPortfolio() {
             >
               {/* BEFORE IMAGE (Grayscale, dusty filter / Left background) */}
               <img
-                src="/src/assets/images/garden_beds_1779327341663.png"
-                alt="Before landscaping treatment simulation"
+                src={sliderConfig.beforeImg}
+                alt={sliderConfig.beforeLabel}
                 className="absolute inset-0 w-full h-full object-cover grayscale contrast-125 sepia brightness-[0.70] blur-[1px] pointer-events-none"
                 referrerPolicy="no-referrer"
               />
@@ -75,13 +105,13 @@ export default function ProjectPortfolio() {
                 className="absolute left-4 bottom-4 bg-black/75 backdrop-blur-sm text-[10px] font-mono tracking-widest text-stone-300 px-3 py-1 rounded-md uppercase font-semibold whitespace-nowrap z-10 transition-opacity duration-150"
                 style={{ opacity: sliderPos < 10 ? 0 : 1 }}
               >
-                Dry Weedy Clay Lot (Before)
+                {sliderConfig.beforeLabel}
               </div>
 
               {/* AFTER IMAGE (glorious finished lawn / Right overlay) */}
               <img
-                src="/src/assets/images/garden_beds_1779327341663.png"
-                alt="Finished architectural perennial garden bed"
+                src={sliderConfig.afterImg}
+                alt={sliderConfig.afterLabel}
                 className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                 style={{
                   maskImage: `linear-gradient(to right, transparent calc(${sliderPos}% - 46px), black calc(${sliderPos}% + 46px))`,
@@ -93,7 +123,7 @@ export default function ProjectPortfolio() {
                 className="absolute right-4 bottom-4 bg-black/60 backdrop-blur-sm text-[10px] font-mono tracking-widest text-emerald-400 px-3 py-1 rounded-md uppercase font-semibold z-10 transition-opacity duration-150"
                 style={{ opacity: sliderPos > 90 ? 0 : 1 }}
               >
-                Lined Botanical Walkway (After)
+                {sliderConfig.afterLabel}
               </div>
 
               {/* Slider Control Line Divider */}

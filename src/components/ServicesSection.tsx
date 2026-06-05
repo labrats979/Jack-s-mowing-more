@@ -6,7 +6,7 @@ interface ServicesSectionProps {
   onSelectServicePage: (serviceId: string) => void;
 }
 
-const SERVICE_IMAGES: Record<string, string> = {
+const DEFAULT_SERVICE_IMAGES: Record<string, string> = {
   'service-l-mowing': '/src/assets/images/lawn_mowing_after_1779586183040.png',
   'service-l-cleanup': 'https://images.unsplash.com/photo-1534710951274-1851d3061271?auto=format&fit=crop&q=80&w=800',
   'service-l-landscape': 'https://images.unsplash.com/photo-1558904541-efa8c1a68fa6?auto=format&fit=crop&q=80&w=800',
@@ -18,6 +18,27 @@ const SERVICE_IMAGES: Record<string, string> = {
 };
 
 export default function ServicesSection({ services, onSelectServicePage }: ServicesSectionProps) {
+  const [serviceImages, setServiceImages] = React.useState<Record<string, string>>(DEFAULT_SERVICE_IMAGES);
+
+  React.useEffect(() => {
+    fetch('/api/service-card-images')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load card images');
+        return res.json();
+      })
+      .then(data => {
+        if (data && typeof data === 'object') {
+          setServiceImages(prev => ({
+            ...prev,
+            ...data
+          }));
+        }
+      })
+      .catch(err => {
+        console.warn('Could not retrieve custom service card images, using defaults:', err);
+      });
+  }, []);
+
   return (
     <section id="services" className="py-24 bg-white text-stone-800 border-b border-stone-100 relative">
       <div className="absolute inset-0 bg-stone-50 pointer-events-none opacity-20 grid-dots" />
@@ -62,10 +83,10 @@ export default function ServicesSection({ services, onSelectServicePage }: Servi
                   </h3>
 
                   {/* Dynamic Pictures added under the title of the service */}
-                  {SERVICE_IMAGES[svc.id] && (
+                  {serviceImages[svc.id] && (
                     <div className="mb-4 rounded-lg overflow-hidden border border-stone-200 aspect-video w-full shadow-3xs">
                       <img 
-                        src={SERVICE_IMAGES[svc.id]} 
+                        src={serviceImages[svc.id]} 
                         alt={svc.title}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         referrerPolicy="no-referrer"

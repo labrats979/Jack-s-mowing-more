@@ -133,16 +133,29 @@ export default function ServiceDetailPage({
 
   useEffect(() => {
     const loadVisuals = () => {
-      try {
-        const saved = localStorage.getItem('jacks_service_visuals');
-        if (saved) {
-          setCustomVisuals(JSON.parse(saved));
-        } else {
-          setCustomVisuals({});
-        }
-      } catch (e) {
-        console.error(e);
-      }
+      fetch('/api/visuals')
+        .then(res => res.json())
+        .then(data => {
+          if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+            setCustomVisuals(data);
+          } else {
+            const saved = localStorage.getItem('jacks_service_visuals');
+            if (saved) {
+              setCustomVisuals(JSON.parse(saved));
+            } else {
+              setCustomVisuals({});
+            }
+          }
+        })
+        .catch(err => {
+          console.error("API failed to load visuals:", err);
+          const saved = localStorage.getItem('jacks_service_visuals');
+          if (saved) {
+            setCustomVisuals(JSON.parse(saved));
+          } else {
+            setCustomVisuals({});
+          }
+        });
     };
     loadVisuals();
     window.addEventListener('storage', loadVisuals);

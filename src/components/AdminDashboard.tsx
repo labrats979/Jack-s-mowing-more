@@ -6,6 +6,7 @@ import {
   Image as ImageIcon, Eye, Upload, Send, Clock, CheckCircle2, Archive, Star
 } from 'lucide-react';
 import { Service } from '../types';
+import { uploadBase64ToStorage } from '../firebaseStorage';
 
 const DEFAULT_VISUALS: Record<string, { beforeImg: string; afterImg: string; beforeDesc: string; afterDesc: string }> = {
   'service-l-mowing': {
@@ -266,6 +267,20 @@ export default function AdminDashboard({
 
   const [isUploadingCover, setIsUploadingCover] = useState(false);
 
+  // Interactive slider configuration states
+  const [sliderConfig, setSliderConfig] = useState({
+    beforeImg: "/src/assets/images/garden_beds_1779327341663.png",
+    beforeLabel: "Dry Weedy Clay Lot (Before)",
+    afterImg: "/src/assets/images/garden_beds_1779327341663.png",
+    afterLabel: "Lined Botanical Walkway (After)"
+  });
+  const [isUploadingSliderBefore, setIsUploadingSliderBefore] = useState(false);
+  const [isUploadingSliderAfter, setIsUploadingSliderAfter] = useState(false);
+
+  // Service grid card category thumbnail images
+  const [serviceCardImages, setServiceCardImages] = useState<Record<string, string>>({});
+  const [isUploadingCardImage, setIsUploadingCardImage] = useState<Record<string, boolean>>({});
+
   const handleUploadCoverFile = (file: File) => {
     setIsUploadingCover(true);
     const reader = new FileReader();
@@ -298,31 +313,42 @@ export default function AdminDashboard({
             ctx.drawImage(img, 0, 0, width, height);
             const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
             
-            fetch('/api/upload-image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ base64: compressedDataUrl, fileName: file.name })
-            })
-            .then(res => {
-              if (!res.ok) throw new Error('File upload script failed');
-              return res.json();
-            })
-            .then(data => {
-              if (data.imageUrl && onSaveCoverPhoto) {
-                onSaveCoverPhoto(data.imageUrl);
-              } else {
-                throw new Error('Image URL undefined in response');
-              }
-            })
-            .catch(err => {
-              console.error('Failed to write cover to local workspace, caching as base64:', err);
-              if (onSaveCoverPhoto) {
-                onSaveCoverPhoto(compressedDataUrl);
-              }
-            })
-            .finally(() => {
-              setIsUploadingCover(false);
-            });
+            // Attempt to upload first to persistent Firebase Storage
+            const uniqueName = `covers/cover_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`;
+            uploadBase64ToStorage(compressedDataUrl, uniqueName)
+              .then(downloadUrl => {
+                if (onSaveCoverPhoto) {
+                  onSaveCoverPhoto(downloadUrl);
+                }
+              })
+              .catch(err => {
+                console.warn('Firebase Storage upload failed, trying local disk uploader:', err);
+                return fetch('/api/upload-image', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ base64: compressedDataUrl, fileName: file.name })
+                })
+                .then(res => {
+                  if (!res.ok) throw new Error('File upload script failed');
+                  return res.json();
+                })
+                .then(data => {
+                  if (data.imageUrl && onSaveCoverPhoto) {
+                    onSaveCoverPhoto(data.imageUrl);
+                  } else {
+                    throw new Error('Image URL undefined in response');
+                  }
+                });
+              })
+              .catch(finalErr => {
+                console.error('All persistent upload pathways failed, saving as client-side base64:', finalErr);
+                if (onSaveCoverPhoto) {
+                  onSaveCoverPhoto(compressedDataUrl);
+                }
+              })
+              .finally(() => {
+                setIsUploadingCover(false);
+              });
           }
         };
         img.src = event.target.result;
@@ -364,37 +390,48 @@ export default function AdminDashboard({
             // Compress to standard JPEG format (0.80 quality)
             const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.80);
             
-            // Post to the backend persistent image uploader API
-            fetch('/api/upload-image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ base64: compressedDataUrl, fileName: file.name })
-            })
-            .then(res => {
-              if (!res.ok) throw new Error('File upload script failed');
-              return res.json();
-            })
-            .then(data => {
-              if (data.imageUrl) {
+            // Try Firebase Storage first
+            const uniqueName = `portfolio/portfolio_${field}_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`;
+            uploadBase64ToStorage(compressedDataUrl, uniqueName)
+              .then(downloadUrl => {
                 setVisualsForm(prev => ({
                   ...prev,
-                  [field]: data.imageUrl
+                  [field]: downloadUrl
                 }));
-              } else {
-                throw new Error('Image URL undefined in response');
-              }
-            })
-            .catch(err => {
-              console.error('Failed to write file to local workspace disk, caching in base64:', err);
-              // Fallback to caching as base64 in local state/localstorage
-              setVisualsForm(prev => ({
-                ...prev,
-                [field]: compressedDataUrl
-              }));
-            })
-            .finally(() => {
-              setIsUploading(prev => ({ ...prev, [field]: false }));
-            });
+              })
+              .catch(err => {
+                console.warn('Firebase Storage upload failed for portfolio visual, trying local server disk:', err);
+                // Post to the backend persistent image uploader API
+                return fetch('/api/upload-image', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ base64: compressedDataUrl, fileName: file.name })
+                })
+                .then(res => {
+                  if (!res.ok) throw new Error('File upload script failed');
+                  return res.json();
+                })
+                .then(data => {
+                  if (data.imageUrl) {
+                    setVisualsForm(prev => ({
+                      ...prev,
+                      [field]: data.imageUrl
+                    }));
+                  } else {
+                    throw new Error('Image URL undefined in response');
+                  }
+                });
+              })
+              .catch(finalErr => {
+                console.error('All portfolio asset uploads failed, falling back to client-sided base64:', finalErr);
+                setVisualsForm(prev => ({
+                  ...prev,
+                  [field]: compressedDataUrl
+                }));
+              })
+              .finally(() => {
+                setIsUploading(prev => ({ ...prev, [field]: false }));
+              });
           } else {
             // Fallback for canvas context issue
             setVisualsForm(prev => ({
@@ -413,6 +450,185 @@ export default function AdminDashboard({
       setIsUploading(prev => ({ ...prev, [field]: false }));
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleUploadSliderFile = (file: File, field: 'beforeImg' | 'afterImg') => {
+    if (field === 'beforeImg') setIsUploadingSliderBefore(true);
+    else setIsUploadingSliderAfter(true);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result && typeof event.target.result === 'string') {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+            // Upload via Firebase Storage
+            const uniqueName = `slider/slider_${field}_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`;
+            uploadBase64ToStorage(compressedDataUrl, uniqueName)
+              .then(downloadUrl => {
+                const updated = { ...sliderConfig, [field]: downloadUrl };
+                setSliderConfig(updated);
+                saveSliderConfigToServer(updated);
+              })
+              .catch(err => {
+                console.warn('Firebase Storage upload failed for slider, trying server filesystem:', err);
+                return fetch('/api/upload-image', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ base64: compressedDataUrl, fileName: file.name })
+                })
+                .then(res => {
+                  if (!res.ok) throw new Error('File upload script failed');
+                  return res.json();
+                })
+                .then(data => {
+                  if (data.imageUrl) {
+                    const updated = { ...sliderConfig, [field]: data.imageUrl };
+                    setSliderConfig(updated);
+                    saveSliderConfigToServer(updated);
+                  }
+                });
+              })
+              .catch(finalErr => {
+                console.error('All slider upload avenues failed, saving base64:', finalErr);
+                const updated = { ...sliderConfig, [field]: compressedDataUrl };
+                setSliderConfig(updated);
+                saveSliderConfigToServer(updated);
+              })
+              .finally(() => {
+                if (field === 'beforeImg') setIsUploadingSliderBefore(false);
+                else setIsUploadingSliderAfter(false);
+              });
+          }
+        };
+        img.src = event.target.result;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveSliderConfigToServer = (updated: typeof sliderConfig) => {
+    fetch('/api/portfolio-slider', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to save slider config');
+      return res.json();
+    })
+    .catch(err => console.error('Save slider config failed:', err));
+  };
+
+  const handleUploadCardImageFile = (file: File, serviceId: string) => {
+    setIsUploadingCardImage(prev => ({ ...prev, [serviceId]: true }));
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result && typeof event.target.result === 'string') {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1000;
+          const MAX_HEIGHT = 1000;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+            // Upload via Firebase Storage
+            const uniqueName = `service-cards/card_${serviceId}_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`;
+            uploadBase64ToStorage(compressedDataUrl, uniqueName)
+              .then(downloadUrl => {
+                saveServiceCardImageToServer(serviceId, downloadUrl);
+              })
+              .catch(err => {
+                console.warn('Firebase Storage upload failed for card, trying server filesystem:', err);
+                return fetch('/api/upload-image', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ base64: compressedDataUrl, fileName: file.name })
+                })
+                .then(res => {
+                  if (!res.ok) throw new Error('File upload script failed');
+                  return res.json();
+                })
+                .then(data => {
+                  if (data.imageUrl) {
+                    saveServiceCardImageToServer(serviceId, data.imageUrl);
+                  }
+                });
+              })
+              .catch(finalErr => {
+                console.error('All card uploader avenues failed, saving base64:', finalErr);
+                saveServiceCardImageToServer(serviceId, compressedDataUrl);
+              })
+              .finally(() => {
+                setIsUploadingCardImage(prev => ({ ...prev, [serviceId]: false }));
+              });
+          }
+        };
+        img.src = event.target.result;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveServiceCardImageToServer = (serviceId: string, url: string) => {
+    const updated = { ...serviceCardImages, [serviceId]: url };
+    setServiceCardImages(updated);
+
+    fetch('/api/service-card-images', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to save service card image');
+      return res.json();
+    })
+    .catch(err => console.error('Save service card image failed:', err));
   };
 
   // Load email configuration from the server
@@ -502,16 +718,29 @@ export default function AdminDashboard({
   };
 
   const loadVisuals = () => {
-    try {
-      const saved = localStorage.getItem('jacks_service_visuals');
-      if (saved) {
-        setCustomVisuals(JSON.parse(saved));
-      } else {
-        setCustomVisuals({});
-      }
-    } catch (e) {
-      console.error(e);
-    }
+    fetch('/api/visuals')
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          setCustomVisuals(data);
+        } else {
+          const saved = localStorage.getItem('jacks_service_visuals');
+          if (saved) {
+            setCustomVisuals(JSON.parse(saved));
+          } else {
+            setCustomVisuals({});
+          }
+        }
+      })
+      .catch(err => {
+        console.error("API failed to load visuals inside admin:", err);
+        const saved = localStorage.getItem('jacks_service_visuals');
+        if (saved) {
+          setCustomVisuals(JSON.parse(saved));
+        } else {
+          setCustomVisuals({});
+        }
+      });
   };
 
   const loadReviewsInput = () => {
@@ -525,16 +754,47 @@ export default function AdminDashboard({
       .catch(err => console.error("Could not load reviews under Admin Panel:", err));
   };
 
+  const loadSliderConfig = () => {
+    fetch('/api/portfolio-slider')
+      .then(res => res.json())
+      .then(data => {
+        if (data && (data.beforeImg || data.afterImg)) {
+          setSliderConfig({
+            beforeImg: data.beforeImg || "/src/assets/images/garden_beds_1779327341663.png",
+            beforeLabel: data.beforeLabel || "Dry Weedy Clay Lot (Before)",
+            afterImg: data.afterImg || "/src/assets/images/garden_beds_1779327341663.png",
+            afterLabel: data.afterLabel || "Lined Botanical Walkway (After)"
+          });
+        }
+      })
+      .catch(err => console.error("Could not load slider config in Admin:", err));
+  };
+
+  const loadServiceCardImages = () => {
+    fetch('/api/service-card-images')
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data === 'object') {
+          setServiceCardImages(data);
+        }
+      })
+      .catch(err => console.error("Could not load service card images in Admin:", err));
+  };
+
   useEffect(() => {
     loadLeadsInput();
     loadVisuals();
     loadEmailConfig();
     loadReviewsInput();
+    loadSliderConfig();
+    loadServiceCardImages();
     // Handle state update when a new lead or photo is saved in real-time
     const handleStorageChange = () => {
       loadLeadsInput();
       loadVisuals();
       loadReviewsInput();
+      loadSliderConfig();
+      loadServiceCardImages();
     };
     window.addEventListener('storage', handleStorageChange);
     return () => {
@@ -711,25 +971,54 @@ export default function AdminDashboard({
     try {
       setCustomVisuals(nextVisuals);
       localStorage.setItem('jacks_service_visuals', JSON.stringify(nextVisuals));
-      setEditingVisualsId(null);
-      window.dispatchEvent(new Event('storage'));
     } catch (err: any) {
-      console.error('LocalStorage save error:', err);
-      if (err.name === 'QuotaExceededError' || err.message?.includes('quota') || err.message?.includes('exceeded')) {
-        alert('Storage quota exceeded: The image files are too large to store in the browser. Please try using a direct web link/URL, or upload smaller image files.');
-      } else {
-        alert('Failed to save pictures: ' + (err.message || 'Unknown error occurred.'));
-      }
+      console.warn('LocalStorage save is full or failed, proceeding with server-only backup:', err);
     }
+
+    fetch('/api/visuals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(nextVisuals)
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('API server write failure');
+        return res.json();
+      })
+      .then(() => {
+        setEditingVisualsId(null);
+        window.dispatchEvent(new Event('storage'));
+      })
+      .catch(err => {
+        console.error('Server persistent save error for service visuals:', err);
+        setEditingVisualsId(null);
+        window.dispatchEvent(new Event('storage'));
+      });
   };
 
   const handleResetVisuals = (serviceId: string) => {
     if (window.confirm('Clear custom photos and set to blank?')) {
       const nextVisuals = { ...customVisuals };
       delete nextVisuals[serviceId];
-      setCustomVisuals(nextVisuals);
-      localStorage.setItem('jacks_service_visuals', JSON.stringify(nextVisuals));
-      window.dispatchEvent(new Event('storage'));
+      
+      try {
+        setCustomVisuals(nextVisuals);
+        localStorage.setItem('jacks_service_visuals', JSON.stringify(nextVisuals));
+      } catch (err) {
+        console.warn('LocalStorage update warning:', err);
+      }
+
+      fetch('/api/visuals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nextVisuals)
+      })
+        .then(() => {
+          window.dispatchEvent(new Event('storage'));
+        })
+        .catch(err => {
+          console.error('Server deletion error for service visuals:', err);
+          window.dispatchEvent(new Event('storage'));
+        });
     }
   };
 
@@ -1349,6 +1638,151 @@ export default function AdminDashboard({
                                 </div>
                               </div>
                             </div>
+                          </div>
+                        </div>
+
+                        {/* Interactive Portfolio Slider Configuration Panel */}
+                        <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 sm:p-6 space-y-5 text-left font-sans mb-8">
+                          <div>
+                            <h6 className="font-display font-bold text-sm text-stone-900 uppercase flex items-center gap-2">
+                              <RefreshCw className="w-4 h-4 text-emerald-700 font-bold" />
+                              Interactive Before-and-After Slider (Homepage Portfolio Slider)
+                            </h6>
+                            <p className="text-stone-500 text-[11px] font-light mt-0.5">
+                              Customize the interactive comparison slider shown in the portfolio section of the main page. Update image URLs/uploads and custom corner labels.
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Left Side: Before Info */}
+                            <div className="space-y-4 p-4 bg-white rounded-xl border border-stone-150 shadow-3xs">
+                              <span className="text-[10px] font-mono text-amber-805 bg-amber-50 px-2 py-0.5 border border-amber-200 rounded font-bold uppercase tracking-wider block w-max">
+                                Left Slider / Before Settings
+                              </span>
+                              <ImageUploadSelector
+                                label="Before View Image"
+                                value={sliderConfig.beforeImg}
+                                onChange={(val) => {
+                                  const updated = { ...sliderConfig, beforeImg: val };
+                                  setSliderConfig(updated);
+                                  saveSliderConfigToServer(updated);
+                                }}
+                                onFileChange={(file) => handleUploadSliderFile(file, 'beforeImg')}
+                                placeholder="Upload or URL for Before image"
+                                isUploading={isUploadingSliderBefore}
+                              />
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-mono text-stone-605 block uppercase font-bold tracking-wider">Before Label / Caption</label>
+                                <input
+                                  type="text"
+                                  value={sliderConfig.beforeLabel}
+                                  onChange={(e) => {
+                                    const updated = { ...sliderConfig, beforeLabel: e.target.value };
+                                    setSliderConfig(updated);
+                                    saveSliderConfigToServer(updated);
+                                  }}
+                                  placeholder="e.g. Dry Weedy Clay Lot (Before)"
+                                  className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Right Side: After Info */}
+                            <div className="space-y-4 p-4 bg-white rounded-xl border border-stone-150 shadow-3xs">
+                              <span className="text-[10px] font-mono text-emerald-805 bg-emerald-50 px-2 py-0.5 border border-emerald-200 rounded font-bold uppercase tracking-wider block w-max">
+                                Right Slider / After Settings
+                              </span>
+                              <ImageUploadSelector
+                                label="After View Image"
+                                value={sliderConfig.afterImg}
+                                onChange={(val) => {
+                                  const updated = { ...sliderConfig, afterImg: val };
+                                  setSliderConfig(updated);
+                                  saveSliderConfigToServer(updated);
+                                }}
+                                onFileChange={(file) => handleUploadSliderFile(file, 'afterImg')}
+                                placeholder="Upload or URL for After image"
+                                isUploading={isUploadingSliderAfter}
+                              />
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-mono text-stone-605 block uppercase font-bold tracking-wider">After Label / Caption</label>
+                                <input
+                                  type="text"
+                                  value={sliderConfig.afterLabel}
+                                  onChange={(e) => {
+                                    const updated = { ...sliderConfig, afterLabel: e.target.value };
+                                    setSliderConfig(updated);
+                                    saveSliderConfigToServer(updated);
+                                  }}
+                                  placeholder="e.g. Lined Botanical Walkway (After)"
+                                  className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Service Card Thumbnail Images Panel */}
+                        <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 sm:p-6 space-y-5 text-left font-sans mb-8">
+                          <div>
+                            <h6 className="font-display font-bold text-sm text-stone-900 uppercase flex items-center gap-2">
+                              <Layers className="w-4 h-4 text-emerald-700 font-bold" />
+                              Primary Service Card Thumbnail Images (Homepage Grid)
+                            </h6>
+                            <p className="text-stone-500 text-[11px] font-light mt-0.5">
+                              Modify the cover thumbnails loaded directly within each service's general summary card displayed on your homepage.
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                            {services.map((svc) => {
+                              const CARD_DEFAULTS: Record<string, string> = {
+                                'service-l-mowing': '/src/assets/images/lawn_mowing_after_1779586183040.png',
+                                'service-l-cleanup': 'https://images.unsplash.com/photo-1534710951274-1851d3061271?auto=format&fit=crop&q=80&w=800',
+                                'service-l-landscape': 'https://images.unsplash.com/photo-1558904541-efa8c1a68fa6?auto=format&fit=crop&q=80&w=800',
+                                'service-l-hedge': 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&q=80&w=800',
+                                'service-l-mulch': 'https://images.unsplash.com/photo-1598902108854-10e335adac99?auto=format&fit=crop&q=80&w=800',
+                                'service-l-weed': 'https://images.unsplash.com/photo-1507036066871-b708937449ab?auto=format&fit=crop&q=80&w=800',
+                                'service-l-fertilizer': 'https://images.unsplash.com/photo-1584473457406-6240486418e9?auto=format&fit=crop&q=80&w=800',
+                                'service-l-restoration': 'https://images.unsplash.com/photo-1535083783855-76ae62b2914e?auto=format&fit=crop&q=80&w=800'
+                              };
+                              const currentUrl = serviceCardImages[svc.id] || CARD_DEFAULTS[svc.id] || '';
+                              return (
+                                <div key={svc.id} className="bg-white border border-stone-200 p-4 rounded-xl space-y-3 shadow-3xs flex flex-col justify-between">
+                                  <div className="space-y-2">
+                                    <div className="space-y-0.5 text-left">
+                                      <span className="text-[9px] font-mono text-stone-500 uppercase tracking-wider">{svc.category}</span>
+                                      <h6 className="text-[11px] font-display font-bold uppercase text-stone-900 truncate">{svc.title}</h6>
+                                    </div>
+
+                                    {/* Thumbnail Preview */}
+                                    <div className="aspect-video rounded bg-stone-100 overflow-hidden relative border border-stone-200 shadow-3xs flex items-center justify-center">
+                                      {currentUrl ? (
+                                        <img 
+                                          src={currentUrl} 
+                                          alt={svc.title} 
+                                          className="w-full h-full object-cover"
+                                          referrerPolicy="no-referrer"
+                                        />
+                                      ) : (
+                                        <span className="text-[8px] font-mono text-stone-400">No image assigned</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="pt-2">
+                                    <ImageUploadSelector
+                                      label=""
+                                      value={currentUrl}
+                                      onChange={(val) => saveServiceCardImageToServer(svc.id, val)}
+                                      onFileChange={(file) => handleUploadCardImageFile(file, svc.id)}
+                                      placeholder="Thumbnail URL or Upload"
+                                      isUploading={!!isUploadingCardImage[svc.id]}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
 

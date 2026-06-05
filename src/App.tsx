@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import ServicesSection from './components/ServicesSection';
@@ -19,6 +19,44 @@ export default function App() {
   const [coverPhoto, setCoverPhoto] = useState<string>(() => {
     return localStorage.getItem('jacks_cover_photo') || '/src/assets/images/landscape_hero_1779327295782.png';
   });
+
+  // Fetch the cover photo from the server database on mount
+  useEffect(() => {
+    fetch('/api/cover-photo')
+      .then(res => {
+        if (!res.ok) throw new Error('Cover photo fetch failed');
+        return res.json();
+      })
+      .then(data => {
+        if (data.coverPhoto) {
+          setCoverPhoto(data.coverPhoto);
+          localStorage.setItem('jacks_cover_photo', data.coverPhoto);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not fetch server-side cover photo, using localStorage:', err);
+      });
+  }, []);
+
+  // Handle saving the cover photo to both client state/localStorage and backend database
+  const handleSaveCoverPhoto = (url: string) => {
+    setCoverPhoto(url);
+    localStorage.setItem('jacks_cover_photo', url);
+
+    // Save to the server-side persistent database
+    fetch('/api/cover-photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coverPhoto: url })
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Cover photo save failed');
+      return res.json();
+    })
+    .catch(err => {
+      console.error('Server persistent cover photo save failed:', err);
+    });
+  };
 
   // Load initial services from local storage or defaults
   const [services, setServices] = useState<Service[]>(() => {
@@ -241,10 +279,7 @@ export default function App() {
         onSaveServices={handleSaveServices}
         onRestoreDefaults={handleRestoreDefaults}
         coverPhoto={coverPhoto}
-        onSaveCoverPhoto={(url: string) => {
-          setCoverPhoto(url);
-          localStorage.setItem('jacks_cover_photo', url);
-        }}
+        onSaveCoverPhoto={handleSaveCoverPhoto}
       />
 
     </div>

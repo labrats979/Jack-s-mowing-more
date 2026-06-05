@@ -531,6 +531,149 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
     }
   });
 
+  // API Route for Fetching Persistent Service/Portfolio Visuals
+  app.get("/api/visuals", (req, res) => {
+    try {
+      const dbPath = path.join(process.cwd(), "src", "data", "visuals_db.json");
+      if (!fs.existsSync(dbPath)) {
+        return res.json({});
+      }
+      const data = fs.readFileSync(dbPath, "utf-8");
+      res.json(JSON.parse(data));
+    } catch (error: any) {
+      console.error("Failed to read visuals database:", error);
+      res.status(500).json({ error: "Failed to retrieve service portfolio pictures." });
+    }
+  });
+
+  // API Route for Saving Persistent Service/Portfolio Visuals
+  app.post("/api/visuals", (req, res) => {
+    try {
+      const visuals = req.body;
+      const dbPath = path.join(process.cwd(), "src", "data", "visuals_db.json");
+      const dirPath = path.dirname(dbPath);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+      fs.writeFileSync(dbPath, JSON.stringify(visuals, null, 2), "utf-8");
+      res.json({ success: true, visuals });
+    } catch (error: any) {
+      console.error("Failed to save visuals to database:", error);
+      res.status(500).json({ error: "Failed to persist service portfolio pictures on server disk." });
+    }
+  });
+
+  // API Route for Fetching Persistent Cover Photo
+  app.get("/api/cover-photo", (req, res) => {
+    try {
+      const dbPath = path.join(process.cwd(), "src", "data", "cover_photo_db.json");
+      if (!fs.existsSync(dbPath)) {
+        return res.json({ coverPhoto: '/src/assets/images/landscape_hero_1779327295782.png' });
+      }
+      const data = fs.readFileSync(dbPath, "utf-8");
+      res.json(JSON.parse(data));
+    } catch (error: any) {
+      console.error("Failed to read cover photo database:", error);
+      res.status(500).json({ error: "Failed to retrieve cover photo choice." });
+    }
+  });
+
+  // API Route for Saving Persistent Cover Photo
+  app.post("/api/cover-photo", (req, res) => {
+    try {
+      const { coverPhoto } = req.body;
+      const dbPath = path.join(process.cwd(), "src", "data", "cover_photo_db.json");
+      const dirPath = path.dirname(dbPath);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+      fs.writeFileSync(dbPath, JSON.stringify({ coverPhoto }, null, 2), "utf-8");
+      res.json({ success: true, coverPhoto });
+    } catch (error: any) {
+      console.error("Failed to save cover photo to database:", error);
+      res.status(500).json({ error: "Failed to persist cover photo on server." });
+    }
+  });
+
+  // API Route for Fetching Persistent Interactive Portfolio Slider Config
+  app.get("/api/portfolio-slider", (req, res) => {
+    try {
+      const dbPath = path.join(process.cwd(), "src", "data", "portfolio_slider_db.json");
+      if (!fs.existsSync(dbPath)) {
+        return res.json({
+          beforeImg: "/src/assets/images/garden_beds_1779327341663.png",
+          beforeLabel: "Dry Weedy Clay Lot (Before)",
+          afterImg: "/src/assets/images/garden_beds_1779327341663.png",
+          afterLabel: "Lined Botanical Walkway (After)"
+        });
+      }
+      const data = fs.readFileSync(dbPath, "utf-8");
+      res.json(JSON.parse(data));
+    } catch (error: any) {
+      console.error("Failed to read portfolio slider database:", error);
+      res.status(500).json({ error: "Failed to retrieve portfolio slider settings." });
+    }
+  });
+
+  // API Route for Saving Persistent Interactive Portfolio Slider Config
+  app.post("/api/portfolio-slider", (req, res) => {
+    try {
+      const config = req.body;
+      const dbPath = path.join(process.cwd(), "src", "data", "portfolio_slider_db.json");
+      const dirPath = path.dirname(dbPath);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+      fs.writeFileSync(dbPath, JSON.stringify(config, null, 2), "utf-8");
+      res.json({ success: true, ...config });
+    } catch (error: any) {
+      console.error("Failed to save portfolio slider database:", error);
+      res.status(500).json({ error: "Failed to persist portfolio slider settings." });
+    }
+  });
+
+  // API Route for Fetching Persistent Service Card Grid Images
+  app.get("/api/service-card-images", (req, res) => {
+    try {
+      const dbPath = path.join(process.cwd(), "src", "data", "service_card_images_db.json");
+      if (!fs.existsSync(dbPath)) {
+        // Return default map
+        return res.json({
+          'service-l-mowing': '/src/assets/images/lawn_mowing_after_1779586183040.png',
+          'service-l-cleanup': 'https://images.unsplash.com/photo-1534710951274-1851d3061271?auto=format&fit=crop&q=80&w=800',
+          'service-l-landscape': 'https://images.unsplash.com/photo-1558904541-efa8c1a68fa6?auto=format&fit=crop&q=80&w=800',
+          'service-l-hedge': 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&q=80&w=800',
+          'service-l-mulch': 'https://images.unsplash.com/photo-1598902108854-10e335adac99?auto=format&fit=crop&q=80&w=800',
+          'service-l-weed': 'https://images.unsplash.com/photo-1507036066871-b708937449ab?auto=format&fit=crop&q=80&w=800',
+          'service-l-fertilizer': 'https://images.unsplash.com/photo-1584473457406-6240486418e9?auto=format&fit=crop&q=80&w=800',
+          'service-l-restoration': 'https://images.unsplash.com/photo-1535083783855-76ae62b2914e?auto=format&fit=crop&q=80&w=800'
+        });
+      }
+      const data = fs.readFileSync(dbPath, "utf-8");
+      res.json(JSON.parse(data));
+    } catch (error: any) {
+      console.error("Failed to read service card images database:", error);
+      res.status(500).json({ error: "Failed to retrieve service card images." });
+    }
+  });
+
+  // API Route for Saving Persistent Service Card Grid Images
+  app.post("/api/service-card-images", (req, res) => {
+    try {
+      const config = req.body;
+      const dbPath = path.join(process.cwd(), "src", "data", "service_card_images_db.json");
+      const dirPath = path.dirname(dbPath);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+      fs.writeFileSync(dbPath, JSON.stringify(config, null, 2), "utf-8");
+      res.json({ success: true, config });
+    } catch (error: any) {
+      console.error("Failed to save service card images database:", error);
+      res.status(500).json({ error: "Failed to persist service card images." });
+    }
+  });
+
   // API Route for Image Generation
   app.post("/api/generate-image", async (req, res) => {
     try {
