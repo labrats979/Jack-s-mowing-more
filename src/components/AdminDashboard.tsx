@@ -105,7 +105,7 @@ function ImageUploadSelector({
     }
   };
 
-  const isUploaded = value?.startsWith('data:') || value?.startsWith('/src/assets/images/');
+  const isUploaded = !!value && value.trim().length > 0;
 
   return (
     <div className="space-y-1.5 text-left">
@@ -365,10 +365,22 @@ export default function AdminDashboard({
               .finally(() => {
                 setIsUploadingLogo(false);
               });
+          } else {
+            setIsUploadingLogo(false);
           }
         };
+        img.onerror = () => {
+          console.error('Logo image load failed');
+          setIsUploadingLogo(false);
+        };
         img.src = event.target.result;
+      } else {
+        setIsUploadingLogo(false);
       }
+    };
+    reader.onerror = () => {
+      console.error('Logo file reading failed');
+      setIsUploadingLogo(false);
     };
     reader.readAsDataURL(file);
   };
@@ -455,10 +467,22 @@ export default function AdminDashboard({
               .finally(() => {
                 setIsUploadingCover(false);
               });
+          } else {
+            setIsUploadingCover(false);
           }
         };
+        img.onerror = () => {
+          console.error('Cover image loading failed');
+          setIsUploadingCover(false);
+        };
         img.src = event.target.result;
+      } else {
+        setIsUploadingCover(false);
       }
+    };
+    reader.onerror = () => {
+      console.error('Cover file reading failed');
+      setIsUploadingCover(false);
     };
     reader.readAsDataURL(file);
   };
@@ -547,6 +571,10 @@ export default function AdminDashboard({
             setIsUploading(prev => ({ ...prev, [field]: false }));
           }
         };
+        img.onerror = () => {
+          console.error('Portfolio image loading failed');
+          setIsUploading(prev => ({ ...prev, [field]: false }));
+        };
         img.src = event.target.result;
       } else {
         setIsUploading(prev => ({ ...prev, [field]: false }));
@@ -629,10 +657,26 @@ export default function AdminDashboard({
                 if (field === 'beforeImg') setIsUploadingSliderBefore(false);
                 else setIsUploadingSliderAfter(false);
               });
+          } else {
+            if (field === 'beforeImg') setIsUploadingSliderBefore(false);
+            else setIsUploadingSliderAfter(false);
           }
         };
+        img.onerror = () => {
+          console.error('Slider image loading failed');
+          if (field === 'beforeImg') setIsUploadingSliderBefore(false);
+          else setIsUploadingSliderAfter(false);
+        };
         img.src = event.target.result;
+      } else {
+        if (field === 'beforeImg') setIsUploadingSliderBefore(false);
+        else setIsUploadingSliderAfter(false);
       }
+    };
+    reader.onerror = () => {
+      console.error('Slider file reading failed');
+      if (field === 'beforeImg') setIsUploadingSliderBefore(false);
+      else setIsUploadingSliderAfter(false);
     };
     reader.readAsDataURL(file);
   };
@@ -713,10 +757,22 @@ export default function AdminDashboard({
               .finally(() => {
                 setIsUploadingCardImage(prev => ({ ...prev, [serviceId]: false }));
               });
+          } else {
+            setIsUploadingCardImage(prev => ({ ...prev, [serviceId]: false }));
           }
         };
+        img.onerror = () => {
+          console.error('Card image loading failed');
+          setIsUploadingCardImage(prev => ({ ...prev, [serviceId]: false }));
+        };
         img.src = event.target.result;
+      } else {
+        setIsUploadingCardImage(prev => ({ ...prev, [serviceId]: false }));
       }
+    };
+    reader.onerror = () => {
+      console.error('Card image file reading failed');
+      setIsUploadingCardImage(prev => ({ ...prev, [serviceId]: false }));
     };
     reader.readAsDataURL(file);
   };
