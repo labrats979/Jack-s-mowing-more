@@ -158,13 +158,13 @@ function ImageUploadSelector({
         onDragLeave={handleDrag}
         onDrop={handleDrop}
         onClick={() => !isUploading && fileInputRef.current?.click()}
-        className={`border-2 border-dashed rounded-xl p-4.5 text-center transition-all flex flex-col items-center justify-center gap-1.5 ${
+        className={`border-2 border-dashed rounded-xl p-4.5 text-center transition-all flex flex-col items-center justify-center gap-1.5 min-h-[140px] relative overflow-hidden ${
           isUploading
-            ? 'border-emerald-300 bg-emerald-50/20 cursor-wait'
+            ? 'border-emerald-300 bg-emerald-50/10 cursor-wait'
             : isDragActive 
               ? 'border-emerald-600 bg-emerald-50/50 cursor-pointer' 
               : isUploaded 
-                ? 'border-emerald-200 bg-emerald-50/10 hover:border-emerald-450 cursor-pointer' 
+                ? 'border-emerald-250 bg-emerald-50/10 hover:border-emerald-450 cursor-pointer' 
                 : 'border-stone-250 hover:border-emerald-600 bg-stone-50/30 hover:bg-white cursor-pointer'
         }`}
       >
@@ -177,32 +177,51 @@ function ImageUploadSelector({
           disabled={isUploading}
         />
         
-        {isUploading ? (
-          <RefreshCw className="w-5 h-5 text-emerald-600 animate-spin" />
-        ) : (
-          <Upload className={`w-5 h-5 ${isDragActive || isUploaded ? 'text-emerald-600' : 'text-stone-400'}`} />
-        )}
-        
-        {isUploading ? (
-          <div className="space-y-0.5">
-            <span className="text-xs font-semibold text-emerald-850 block animate-pulse">Uploading and writing to server disk...</span>
-            <span className="text-[9px] text-stone-500 block font-mono">Bypassing browser quotas safely</span>
+        {isUploaded ? (
+          <div className="flex items-center gap-3.5 z-10 w-full px-1">
+            <div className="w-14 h-14 rounded-lg overflow-hidden border border-emerald-150 shadow-sm flex-shrink-0 bg-stone-100 flex items-center justify-center">
+              <img src={value} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            </div>
+            <div className="flex-1 text-left space-y-0.5">
+              {isUploading ? (
+                <>
+                  <span className="text-xs font-semibold text-emerald-800 flex items-center gap-1.5 font-mono">
+                    <RefreshCw className="w-3.5 h-3.5 text-emerald-600 animate-spin flex-shrink-0" />
+                    Uploading...
+                  </span>
+                  <span className="text-[10px] text-stone-500 block leading-tight">Saving permanently to the web server catalog...</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-xs font-semibold text-emerald-850 block">✓ Photo Active</span>
+                  <span className="text-[9px] text-emerald-700/80 font-mono block leading-none">
+                    {value.startsWith('blob:') 
+                      ? 'Local device link (Processing live server sync...)' 
+                      : value.startsWith('data:') 
+                        ? 'Embedded data string' 
+                        : 'Saved permanently and live on live server!'}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
-        ) : isUploaded ? (
-          <div className="space-y-0.5">
-            <span className="text-xs font-medium text-emerald-800 block">✓ Custom Image Loaded</span>
-            <span className="text-[9px] text-stone-550 block font-mono">
-              {value?.startsWith('data:') 
-                ? 'Cached as embedded browser data URL' 
-                : 'Saved permanently to server storage directory'}
-            </span>
+        ) : isUploading ? (
+          <div className="flex flex-col items-center justify-center gap-1.5 z-10 p-2">
+            <RefreshCw className="w-5 h-5 text-emerald-600 animate-spin" />
+            <div className="space-y-0.5 text-center">
+              <span className="text-xs font-semibold text-emerald-850 block animate-pulse">Uploading and writing to server disk...</span>
+              <span className="text-[9px] text-stone-500 block font-mono">Bypassing browser quotas safely</span>
+            </div>
           </div>
         ) : (
-          <div className="space-y-0.5">
-            <span className="text-xs font-light text-stone-700 block text-center">
-              Drag &amp; drop your landscaping photo here, or <strong className="font-semibold text-emerald-700">browse</strong>
-            </span>
-            <span className="text-[9px] text-stone-400 block font-mono">Supports PNG, JPG, WEBP</span>
+          <div className="flex flex-col items-center justify-center gap-1.5 z-10 p-2">
+            <Upload className={`w-5 h-5 ${isDragActive ? 'text-emerald-600' : 'text-stone-400'}`} />
+            <div className="space-y-0.5 text-center">
+              <span className="text-xs font-light text-stone-700 block">
+                Drag &amp; drop your landscaping photo here, or <strong className="font-semibold text-emerald-700">browse</strong>
+              </span>
+              <span className="text-[9px] text-stone-400 block font-mono">Supports PNG, JPG, WEBP</span>
+            </div>
           </div>
         )}
       </div>
@@ -223,9 +242,9 @@ function ImageUploadSelector({
         </div>
         <input
           type="text"
-          value={value?.startsWith('data:') ? '' : value || ''}
+          value={(value?.startsWith('data:') || value?.startsWith('blob:')) ? '' : value || ''}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={value?.startsWith('data:') ? 'Using uploaded local file. Paste a URL or clear to override.' : placeholder}
+          placeholder={(value?.startsWith('data:') || value?.startsWith('blob:')) ? 'Using uploaded local file. Paste a URL or clear to override.' : placeholder}
           className="w-full px-3.5 py-1.5 bg-white border border-stone-250 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs placeholder:text-stone-400"
           disabled={isUploading}
         />
@@ -332,6 +351,16 @@ export default function AdminDashboard({
 
   const handleUploadLogoFile = (file: File) => {
     setIsUploadingLogo(true);
+    
+    // Instantly generate and assign a local device object URL for immediate high-performance view
+    const localUrl = URL.createObjectURL(file);
+    if (onSaveLogoConfig && logoConfig) {
+      onSaveLogoConfig({
+        ...logoConfig,
+        imageUrl: localUrl
+      });
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target?.result && typeof event.target.result === 'string') {
@@ -375,6 +404,11 @@ export default function AdminDashboard({
               })
               .finally(() => {
                 setIsUploadingLogo(false);
+                try {
+                  URL.revokeObjectURL(localUrl);
+                } catch (e) {
+                  console.error('Error revoking logo object URL', e);
+                }
               });
           } else {
             setIsUploadingLogo(false);
@@ -412,6 +446,13 @@ export default function AdminDashboard({
 
   const handleUploadCoverFile = (file: File) => {
     setIsUploadingCover(true);
+    
+    // Instantly generate and assign a local device object URL for zero-latency screen rendering
+    const localUrl = URL.createObjectURL(file);
+    if (onSaveCoverPhoto) {
+      onSaveCoverPhoto(localUrl);
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target?.result && typeof event.target.result === 'string') {
@@ -452,6 +493,11 @@ export default function AdminDashboard({
               })
               .finally(() => {
                 setIsUploadingCover(false);
+                try {
+                  URL.revokeObjectURL(localUrl);
+                } catch (e) {
+                  console.error('Error revoking cover photo URL', e);
+                }
               });
           } else {
             setIsUploadingCover(false);
@@ -475,6 +521,14 @@ export default function AdminDashboard({
 
   const handleUploadFile = (file: File, field: 'beforeImg' | 'afterImg') => {
     setIsUploading(prev => ({ ...prev, [field]: true }));
+    
+    // Instantly generate and assign local object URL for zero-latency form previews
+    const localUrl = URL.createObjectURL(file);
+    setVisualsForm(prev => ({
+      ...prev,
+      [field]: localUrl
+    }));
+
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target?.result && typeof event.target.result === 'string') {
@@ -546,6 +600,11 @@ export default function AdminDashboard({
     if (field === 'beforeImg') setIsUploadingSliderBefore(true);
     else setIsUploadingSliderAfter(true);
 
+    // Instantly generate and assign local object URL for zero-latency slider updates
+    const localUrl = URL.createObjectURL(file);
+    const updatedWithLocal = { ...sliderConfig, [field]: localUrl };
+    setSliderConfig(updatedWithLocal);
+
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target?.result && typeof event.target.result === 'string') {
@@ -587,6 +646,11 @@ export default function AdminDashboard({
               .finally(() => {
                 if (field === 'beforeImg') setIsUploadingSliderBefore(false);
                 else setIsUploadingSliderAfter(false);
+                try {
+                  URL.revokeObjectURL(localUrl);
+                } catch (e) {
+                  console.error('Error revoking slider object URL', e);
+                }
               });
           } else {
             if (field === 'beforeImg') setIsUploadingSliderBefore(false);
@@ -628,6 +692,11 @@ export default function AdminDashboard({
   const handleUploadCardImageFile = (file: File, serviceId: string) => {
     setIsUploadingCardImage(prev => ({ ...prev, [serviceId]: true }));
 
+    // Instantly generate and assign local object URL for zero-latency card previews
+    const localUrl = URL.createObjectURL(file);
+    const updatedWithLocal = { ...serviceCardImages, [serviceId]: localUrl };
+    setServiceCardImages(updatedWithLocal);
+
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target?.result && typeof event.target.result === 'string') {
@@ -666,6 +735,11 @@ export default function AdminDashboard({
               })
               .finally(() => {
                 setIsUploadingCardImage(prev => ({ ...prev, [serviceId]: false }));
+                try {
+                  URL.revokeObjectURL(localUrl);
+                } catch (e) {
+                  console.error('Error revoking card image object URL', e);
+                }
               });
           } else {
             setIsUploadingCardImage(prev => ({ ...prev, [serviceId]: false }));
