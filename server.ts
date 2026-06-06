@@ -139,7 +139,12 @@ Your goals:
 
       let bookings = [];
       if (fs.existsSync(dbPath)) {
-        bookings = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+        try {
+          const content = fs.readFileSync(dbPath, "utf-8").trim();
+          bookings = content ? JSON.parse(content) : [];
+        } catch (_) {
+          bookings = [];
+        }
       }
 
       // Avoid duplication
@@ -358,6 +363,60 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
       res.json({ success: true, message: "Notification settings updated persistently on the server." });
     } catch (_) {
       res.status(500).json({ error: "Failed to write config." });
+    }
+  });
+
+  // Diagnostic Test Route for SMTP Connection Verification
+  app.post("/api/test-email", async (req, res) => {
+    try {
+      const { recipientEmail, smtpUser, smtpPass } = req.body;
+      let passToUse = smtpPass;
+      
+      // If password was sent as mask, read it from existing config instead
+      if (smtpPass === "••••••••••••") {
+        const configPath = path.join(process.cwd(), "src", "data", "email_config.json");
+        if (fs.existsSync(configPath)) {
+          try {
+            const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+            passToUse = raw.smtpPass || "";
+          } catch (_) {}
+        }
+      }
+
+      if (!smtpUser || !passToUse) {
+        return res.status(400).json({ error: "SMTP user address and App Password are required to run diagnostic tests." });
+      }
+
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: smtpUser,
+          pass: passToUse
+        }
+      });
+
+      await transporter.sendMail({
+        from: `"Jack's App Test" <${smtpUser}>`,
+        to: recipientEmail || smtpUser,
+        subject: "🔔 SMTP Test Connection: Jack's Mowing & More",
+        text: "Success! Your Gmail SMTP App Password has been paired securely and is online.",
+        html: `
+        <div style="font-family: sans-serif; max-width: 500px; padding: 24px; border: 1px solid #10b981; border-radius: 12px; font-size: 14px; line-height: 1.5; background-color: #fafaf9; text-align: center; margin: 0 auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <h2 style="color: #047857; margin-top: 0; font-size: 20px;">🎉 SMTP Lead Dispatcher Configured!</h2>
+          <p style="color: #4b5563;">Congratulations! This verified test dispatch confirms that your customized Google App Password is correct and capable of transmitting mail alerts securely.</p>
+          <div style="margin: 20px 0; padding: 14px; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 12px; font-family: monospace; text-align: left; color: #1f2937; line-height: 1.6;">
+            <strong style="color: #047857;">Authenticated User:</strong> ${smtpUser}<br/>
+            <strong style="color: #047857;">Lead Inbox Target Address:</strong> ${recipientEmail || smtpUser}<br/>
+            <strong style="color: #047857;">Auth Handshake Status:</strong> Connected &amp; Authenticated
+          </div>
+          <p style="font-size: 11px; color: #6b7280; font-style: italic; margin-bottom: 0;">You can now sleep soundly knowing new landscape queries are forwarded directly to your device.</p>
+        </div>`
+      });
+
+      res.json({ success: true, message: "SMTP connection established. Test email sent!" });
+    } catch (error: any) {
+      console.error("[Diagnostics Failed] smtp auth session failed:", error);
+      res.status(500).json({ error: error.message || "Failed to establish a valid SMTP connection with Gmail." });
     }
   });
 
@@ -633,6 +692,44 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
     }
   });
 
+  // API Route for Fetching Persistent Header/Footer Contact Information
+  app.get("/api/contact-info", (req, res) => {
+    try {
+      const dbPath = path.join(process.cwd(), "src", "data", "contact_info_db.json");
+      if (!fs.existsSync(dbPath)) {
+        return res.json({
+          phone: "+1 (732) 790-9789",
+          phoneRaw: "1-732-790-9789",
+          email: "estimates@jacksmowing.com",
+          location: "Milltown, NJ",
+          description: "Architectural landscape design, precision lawn mowing, lawn recovery, and custom stonemasonry. Serving Milltown with pride and premium cleanup."
+        });
+      }
+      const data = fs.readFileSync(dbPath, "utf-8");
+      res.json(JSON.parse(data));
+    } catch (error: any) {
+      console.error("Failed to read contact info database:", error);
+      res.status(500).json({ error: "Failed to retrieve contact info choice." });
+    }
+  });
+
+  // API Route for Saving Persistent Header/Footer Contact Information
+  app.post("/api/contact-info", (req, res) => {
+    try {
+      const config = req.body;
+      const dbPath = path.join(process.cwd(), "src", "data", "contact_info_db.json");
+      const dirPath = path.dirname(dbPath);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+      fs.writeFileSync(dbPath, JSON.stringify(config, null, 2), "utf-8");
+      res.json({ success: true, ...config });
+    } catch (error: any) {
+      console.error("Failed to save contact info database:", error);
+      res.status(500).json({ error: "Failed to persist contact info modifications." });
+    }
+  });
+
   // API Route for Fetching Persistent Interactive Portfolio Slider Config
   app.get("/api/portfolio-slider", (req, res) => {
     try {
@@ -782,16 +879,16 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
       const cleanedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
       const safeFileName = `uploaded_${safeSuffix}_${cleanedFileName}`;
       
-      const imagesDir = path.join(process.cwd(), "src", "assets", "images");
-      if (!fs.existsSync(imagesDir)) {
-        fs.mkdirSync(imagesDir, { recursive: true });
+      const uploadsDir = path.join(process.cwd(), "uploads");
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
       }
 
-      const destPath = path.join(imagesDir, safeFileName);
+      const destPath = path.join(uploadsDir, safeFileName);
       fs.writeFileSync(destPath, buffer);
 
-      // Return the relative URL path inside source assets
-      const imageUrl = `/src/assets/images/${safeFileName}`;
+      // Return the stable relative URL path inside root uploads route
+      const imageUrl = `/uploads/${safeFileName}`;
       res.json({ imageUrl });
     } catch (err: any) {
       console.error("Image upload processing error:", err);
@@ -806,6 +903,7 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
 
   // Expose the uploaded and default physical service/portfolio visuals statically
   app.use("/src/assets/images", express.static(path.join(process.cwd(), "src", "assets", "images")));
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   // Vite development middleware vs Static Production bundle
   if (process.env.NODE_ENV !== "production") {

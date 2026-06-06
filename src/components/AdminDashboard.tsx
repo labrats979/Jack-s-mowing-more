@@ -208,6 +208,14 @@ interface AdminDashboardProps {
     svgColor: string;
   };
   onSaveLogoConfig?: (config: any) => void;
+  contactInfo?: {
+    phone: string;
+    phoneRaw: string;
+    email: string;
+    location: string;
+    description: string;
+  };
+  onSaveContactInfo?: (info: any) => void;
 }
 
 interface Lead {
@@ -230,7 +238,9 @@ export default function AdminDashboard({
   coverPhoto,
   onSaveCoverPhoto,
   logoConfig,
-  onSaveLogoConfig
+  onSaveLogoConfig,
+  contactInfo,
+  onSaveContactInfo
 }: AdminDashboardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [password, setPassword] = useState('');
@@ -246,6 +256,7 @@ export default function AdminDashboard({
   const [recipientEmail, setRecipientEmail] = useState('jacks.mowing.and.more1@gmail.com');
   const [smtpUser, setSmtpUser] = useState('jacks.mowing.and.more1@gmail.com');
   const [smtpPass, setSmtpPass] = useState('');
+  const [isEmailConfigured, setIsEmailConfigured] = useState(true);
   const [emailSettingsSavedStatus, setEmailSettingsSavedStatus] = useState('');
   const [testEmailSending, setTestEmailSending] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState('');
@@ -733,9 +744,12 @@ export default function AdminDashboard({
       .then(data => {
         if (data.recipientEmail) setRecipientEmail(data.recipientEmail);
         if (data.smtpUser) setSmtpUser(data.smtpUser);
-        // Do not update SMTP password state so it is masked
+        setIsEmailConfigured(!!data.smtpPass);
       })
-      .catch(err => console.error("Could not load email configuration:", err));
+      .catch(err => {
+        console.error("Could not load email configuration:", err);
+        setIsEmailConfigured(false);
+      });
   };
 
   // Load leads from LocalStorage and synchronise with the backend server
@@ -1302,6 +1316,24 @@ export default function AdminDashboard({
                     {/* CONTENT - TAB: LEADS INBOX */}
                     {activeTab === 'leads' && (
                       <div className="space-y-4">
+                        {!isEmailConfigured && (
+                          <div className="p-4 bg-amber-50 border border-amber-250 rounded-2xl text-amber-900 text-xs flex flex-col sm:flex-row items-center justify-between gap-3 shadow-3xs text-left">
+                            <div className="flex items-center gap-2.5">
+                              <ShieldAlert className="w-5 h-5 text-amber-700 shrink-0" />
+                              <p className="font-light leading-relaxed">
+                                <strong className="font-semibold text-amber-950 uppercase">Email Leads Forwarding Offline:</strong> You will not receive inbox email alerts when prospective clients submit quotes. Set up your Gmail and App Password to enable forwarding.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('email')}
+                              className="px-3.5 py-1.5 bg-amber-950 hover:bg-amber-900 text-stone-100 rounded-lg text-[10px] uppercase font-mono tracking-widest font-bold font-sans cursor-pointer shrink-0 transition-all active:scale-95 shadow-2xs"
+                            >
+                              Configure Now
+                            </button>
+                          </div>
+                        )}
+
                         <div className="flex items-center justify-between">
                           <div className="text-left">
                             <h5 className="font-display font-bold text-stone-900 text-sm uppercase">Customer Requests Queue</h5>
@@ -1935,6 +1967,165 @@ export default function AdminDashboard({
                               </div>
                             </div>
 
+                          </div>
+                        </div>
+
+                        {/* Dynamic Website Contact Info Configuration Card */}
+                        <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 sm:p-6 space-y-5 text-left font-sans mb-8">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200 pb-3">
+                            <div>
+                              <h6 className="font-display font-bold text-sm text-stone-900 uppercase flex items-center gap-2">
+                                <Mail className="w-4 h-4 text-emerald-700 font-bold" />
+                                Contact Coordinates &amp; Footer Info
+                              </h6>
+                              <p className="text-stone-550 text-[11px] font-light mt-0.5">
+                                Customize support phone, click-to-call raw paths, business email accounts, and location descriptions rendered globally across header callouts and footer directory boards.
+                              </p>
+                            </div>
+                            {contactInfo && onSaveContactInfo && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm("Reset contact credentials and local directory information back to Jack's premium defaults?")) {
+                                    onSaveContactInfo({
+                                      phone: "+1 (732) 790-9789",
+                                      phoneRaw: "1-732-790-9789",
+                                      email: "estimates@jacksmowing.com",
+                                      location: "Milltown, NJ",
+                                      description: "Architectural landscape design, precision lawn mowing, lawn recovery, and custom stonemasonry. Serving Milltown with pride and premium cleanup."
+                                    });
+                                  }
+                                }}
+                                className="px-2.5 py-1.5 bg-stone-100 text-stone-605 border border-stone-250 hover:bg-stone-200 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
+                              >
+                                Restore Classic Address
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                            {/* Main editing controls */}
+                            <div className="md:col-span-7 space-y-4">
+                              {contactInfo && onSaveContactInfo ? (
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-mono text-stone-500 block uppercase font-bold tracking-wider">
+                                        Phone Number (Display)
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={contactInfo.phone || ''}
+                                        onChange={(e) => onSaveContactInfo({ ...contactInfo, phone: e.target.value })}
+                                        className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                        placeholder="e.g. +1 (732) 790-9789"
+                                      />
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-mono text-stone-500 block uppercase font-bold tracking-wider">
+                                        Raw Phone Links (tel: link)
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={contactInfo.phoneRaw || ''}
+                                        onChange={(e) => onSaveContactInfo({ ...contactInfo, phoneRaw: e.target.value })}
+                                        className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                        placeholder="e.g. 1-732-790-9789"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-mono text-stone-500 block uppercase font-bold tracking-wider">
+                                        Email Coordinates
+                                      </label>
+                                      <input
+                                        type="email"
+                                        value={contactInfo.email || ''}
+                                        onChange={(e) => onSaveContactInfo({ ...contactInfo, email: e.target.value })}
+                                        className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                        placeholder="e.g. estimates@jacksmowing.com"
+                                      />
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-mono text-stone-500 block uppercase font-bold tracking-wider">
+                                        Town / Operating Area
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={contactInfo.location || ''}
+                                        onChange={(e) => onSaveContactInfo({ ...contactInfo, location: e.target.value })}
+                                        className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                        placeholder="e.g. Milltown, NJ"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-mono text-stone-500 block uppercase font-bold tracking-wider">
+                                      Branding Bio Description (Footer Column)
+                                    </label>
+                                    <textarea
+                                      rows={2}
+                                      value={contactInfo.description || ''}
+                                      onChange={(e) => onSaveContactInfo({ ...contactInfo, description: e.target.value })}
+                                      className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs resize-none"
+                                      placeholder="Explain your specialties and territory area here..."
+                                    />
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-stone-400 text-xs italic">Unable to read contact states dynamically.</p>
+                              )}
+                            </div>
+
+                            {/* Live high-fidelity address preview card */}
+                            <div className="md:col-span-5 h-full flex flex-col">
+                              {contactInfo ? (
+                                <div className="bg-white border border-stone-200 rounded-xl p-6 flex flex-col justify-center min-h-[220px] shadow-3xs flex-1 relative overflow-hidden text-left bg-stone-50/50">
+                                  <div className="absolute top-3 left-3">
+                                    <span className="text-[8px] font-mono bg-stone-900 text-stone-200 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider flex items-center gap-1">
+                                      <Eye className="w-3 h-3 text-emerald-450" />
+                                      Live Footer preview card
+                                    </span>
+                                  </div>
+
+                                  <div className="space-y-4 pt-4 text-stone-800">
+                                    <div>
+                                      <h6 className="font-display font-semibold text-stone-650 text-[10px] uppercase tracking-wider">Company Bio column</h6>
+                                      <p className="text-stone-500 text-[11px] leading-relaxed mt-1 font-light italic">
+                                        "{contactInfo.description}"
+                                      </p>
+                                    </div>
+
+                                    <div className="border-t border-stone-150 pt-3">
+                                      <h6 className="font-display font-semibold text-stone-650 text-[10px] uppercase tracking-wider">Contact Column</h6>
+                                      <div className="space-y-1.5 mt-1.5 text-[11px] text-stone-605">
+                                        <div className="flex items-center gap-2">
+                                          <Phone className="w-3.5 h-3.5 text-stone-405 shrink-0" />
+                                          <span className="font-medium text-stone-750">{contactInfo.phone}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <Mail className="w-3.5 h-3.5 text-stone-405 shrink-0" />
+                                          <span className="hover:underline text-emerald-700">{contactInfo.email}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <MapPin className="w-3.5 h-3.5 text-stone-405 shrink-0" />
+                                          <span>{contactInfo.location}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="bg-white border border-stone-200 rounded-xl p-6 flex items-center justify-center min-h-[220px]">
+                                  <p className="text-stone-400 text-xs italic">Missing preview data</p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
 

@@ -16,6 +16,13 @@ interface NavbarProps {
     svgTextBottom: string;
     svgColor: string;
   };
+  contactInfo?: {
+    phone: string;
+    phoneRaw: string;
+    email: string;
+    location: string;
+    description: string;
+  };
 }
 
 export default function Navbar({
@@ -24,7 +31,8 @@ export default function Navbar({
   onSelectServicePage,
   onBackToHome,
   currentActiveView,
-  logoConfig
+  logoConfig,
+  contactInfo
 }: NavbarProps) {
   const lConfig = logoConfig || {
     logoType: 'svg' as const,
@@ -32,6 +40,13 @@ export default function Navbar({
     svgTextTop: "Jack's",
     svgTextBottom: "Mowing & More",
     svgColor: '#dc2626'
+  };
+  const cInfo = contactInfo || {
+    phone: "+1 (732) 790-9789",
+    phoneRaw: "1-732-790-9789",
+    email: "estimates@jacksmowing.com",
+    location: "Milltown, NJ",
+    description: "Architectural landscape design, precision lawn mowing, lawn recovery, and custom stonemasonry. Serving Milltown with pride and premium cleanup."
   };
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileServicesOpen, setMobileServicesOpen] = useState(false);
@@ -157,9 +172,9 @@ export default function Navbar({
         <div className="flex items-center gap-4 sm:gap-6">
           {/* Phone call trigger */}
           <a
-            href="tel:1-732-790-9789"
+            href={`tel:${cInfo.phoneRaw || '1-732-790-9789'}`}
             className="p-2 rounded-full hover:bg-stone-100 text-stone-600 hover:text-emerald-700 transition"
-            title="Call Jack's Mowing & More"
+            title={`Call ${lConfig.svgTextTop} ${lConfig.svgTextBottom}`}
           >
             <Phone className="w-4.5 h-4.5" />
           </a>
@@ -276,7 +291,7 @@ export default function Navbar({
             >
               <Youtube className="w-5 h-5" />
             </a>
-            <a href="tel:1-732-790-9789" className="flex items-center gap-2 p-2 px-4 border border-stone-200 rounded-lg text-emerald-700 font-bold text-xs hover:border-emerald-600">
+            <a href={`tel:${cInfo.phoneRaw || '1-732-790-9789'}`} className="flex items-center gap-2 p-2 px-4 border border-stone-200 rounded-lg text-emerald-700 font-bold text-xs hover:border-emerald-600">
               <Phone className="w-4 h-4" /> Call Us
             </a>
           </div>

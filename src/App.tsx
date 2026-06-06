@@ -97,6 +97,65 @@ export default function App() {
     });
   };
 
+  // Contact info dynamic customize state
+  const [contactInfo, setContactInfo] = useState(() => {
+    try {
+      const saved = localStorage.getItem('jacks_contact_info');
+      return saved ? JSON.parse(saved) : {
+        phone: "+1 (732) 790-9789",
+        phoneRaw: "1-732-790-9789",
+        email: "estimates@jacksmowing.com",
+        location: "Milltown, NJ",
+        description: "Architectural landscape design, precision lawn mowing, lawn recovery, and custom stonemasonry. Serving Milltown with pride and premium cleanup."
+      };
+    } catch (_) {
+      return {
+        phone: "+1 (732) 790-9789",
+        phoneRaw: "1-732-790-9789",
+        email: "estimates@jacksmowing.com",
+        location: "Milltown, NJ",
+        description: "Architectural landscape design, precision lawn mowing, lawn recovery, and custom stonemasonry. Serving Milltown with pride and premium cleanup."
+      };
+    }
+  });
+
+  // Fetch the custom contact information on mount
+  useEffect(() => {
+    fetch('/api/contact-info')
+      .then(res => {
+        if (!res.ok) throw new Error('Contact info fetch failed');
+        return res.json();
+      })
+      .then(data => {
+        if (data && data.phone) {
+          setContactInfo(data);
+          localStorage.setItem('jacks_contact_info', JSON.stringify(data));
+        }
+      })
+      .catch(err => {
+        console.warn('Could not fetch server-side contact configurations:', err);
+      });
+  }, []);
+
+  // Save customized contact information helper
+  const handleSaveContactInfo = (newContact: typeof contactInfo) => {
+    setContactInfo(newContact);
+    localStorage.setItem('jacks_contact_info', JSON.stringify(newContact));
+
+    fetch('/api/contact-info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newContact)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Contact info save failed');
+      return res.json();
+    })
+    .catch(err => {
+      console.error('Server persistent contact info save failed:', err);
+    });
+  };
+
   // Handle saving the cover photo to both client state/localStorage and backend database
   const handleSaveCoverPhoto = (url: string) => {
     setCoverPhoto(url);
@@ -209,6 +268,7 @@ export default function App() {
         onBackToHome={handleBackToHome}
         currentActiveView={currentActiveView}
         logoConfig={logoConfig}
+        contactInfo={contactInfo}
       />
 
       {/* Conditionally Render Content based on Routing State */}
@@ -294,7 +354,7 @@ export default function App() {
                 </div>
               </div>
               <p className="text-stone-605 text-xs font-light leading-relaxed max-w-sm">
-                Architectural landscape design, precision lawn mowing, lawn recovery, and custom stonemasonry. Serving Milltown with pride and premium cleanup.
+                {contactInfo.description}
               </p>
             </div>
 
@@ -311,19 +371,19 @@ export default function App() {
 
             {/* Contact Details info */}
             <div className="space-y-4 text-xs">
-              <h5 className="font-display font-semibold text-stone-800 text-xs uppercase tracking-wider">Jack's Headquarters</h5>
+              <h5 className="font-display font-semibold text-stone-800 text-xs uppercase tracking-wider">Contact Headquarters</h5>
               <div className="space-y-3 text-stone-600">
                 <div className="flex items-center gap-2.5">
                   <Phone className="w-4 h-4 text-stone-600 shrink-0" />
-                  <span>+1 (732) 790-9789</span>
+                  <a href={`tel:${contactInfo.phoneRaw || '1-732-790-9789'}`} className="hover:underline hover:text-emerald-700">{contactInfo.phone}</a>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <Mail className="w-4 h-4 text-stone-600 shrink-0" />
-                  <span>estimates@jacksmowing.com</span>
+                  <a href={`mailto:${contactInfo.email}`} className="hover:underline hover:text-emerald-700">{contactInfo.email}</a>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <MapPin className="w-4 h-4 text-stone-600 shrink-0" />
-                  <span>Milltown</span>
+                  <span>{contactInfo.location}</span>
                 </div>
               </div>
             </div>
@@ -349,6 +409,8 @@ export default function App() {
         onSaveCoverPhoto={handleSaveCoverPhoto}
         logoConfig={logoConfig}
         onSaveLogoConfig={handleSaveLogoConfig}
+        contactInfo={contactInfo}
+        onSaveContactInfo={handleSaveContactInfo}
       />
 
     </div>

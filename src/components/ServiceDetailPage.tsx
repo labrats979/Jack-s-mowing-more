@@ -405,9 +405,7 @@ export default function ServiceDetailPage({
               <div className="space-y-3">
                 {currentService.features.map((feat, i) => (
                   <div key={i} className="flex items-start gap-3.5 text-xs">
-                    <div className="w-5 h-5 rounded-full bg-emerald-50 border border-emerald-205 text-emerald-700 items-center justify-center flex shrink-0 mt-0.5">
-                      <Check className="w-3 h-3" />
-                    </div>
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0 mt-2" />
                     <div>
                       <span className="text-stone-700 font-medium leading-relaxed">{feat}</span>
                     </div>
