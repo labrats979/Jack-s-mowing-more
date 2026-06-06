@@ -9,6 +9,46 @@ import { Service } from '../types';
 import { uploadBase64ToStorage } from '../firebaseStorage';
 import JacksLogo from './JacksLogo';
 
+/**
+ * Uploads an image to the local backend uploader first, falling back to Firebase Storage,
+ * and finally falling back to the raw compression base64 string on timeout/failure.
+ */
+function uploadImageWithFallback(
+  compressedDataUrl: string,
+  fileName: string,
+  firebasePath: string
+): Promise<string> {
+  // 1. Try local server disk uploader first (lightning fast & extremely reliable)
+  return fetch('/api/upload-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ base64: compressedDataUrl, fileName })
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('Local server upload endpoint error');
+    return res.json();
+  })
+  .then(data => {
+    if (!data.imageUrl) throw new Error('Backend returned empty imageUrl');
+    return data.imageUrl as string;
+  })
+  .catch(serverErr => {
+    console.warn('Local disk uploader failed, attempting Firebase Storage fallback:', serverErr);
+    
+    // 2. Try Firebase Storage with a 3.5-second timeout protection to avoid hanging forever
+    const storagePromise = uploadBase64ToStorage(compressedDataUrl, firebasePath);
+    const timeoutPromise = new Promise<string>((_, reject) =>
+      setTimeout(() => reject(new Error('Firebase Storage upload timed out after 3.5 seconds')), 3500)
+    );
+    
+    return Promise.race([storagePromise, timeoutPromise])
+      .catch(firebaseErr => {
+        console.error('All upload storage lanes failed. Defaulting to client-side base64:', firebaseErr);
+        return compressedDataUrl;
+      });
+  });
+}
+
 const DEFAULT_VISUALS: Record<string, { beforeImg: string; afterImg: string; beforeDesc: string; afterDesc: string }> = {
   'service-l-mowing': {
     beforeImg: '/src/assets/images/lawn_mowing_before_1779586168566.png',
@@ -322,43 +362,14 @@ export default function AdminDashboard({
             ctx.drawImage(img, 0, 0, width, height);
             const compressedDataUrl = canvas.toDataURL('image/png', 0.90);
 
-            // Attempt to upload to persistent Firebase Storage container first
+            // Attempt to upload with local-first resilient fallback pipeline
             const uniqueName = `branding/logo_${Date.now()}_${Math.floor(Math.random() * 1000)}.png`;
-            uploadBase64ToStorage(compressedDataUrl, uniqueName)
-              .then(downloadUrl => {
+            uploadImageWithFallback(compressedDataUrl, file.name, uniqueName)
+              .then(imageUrl => {
                 if (onSaveLogoConfig && logoConfig) {
                   onSaveLogoConfig({
                     ...logoConfig,
-                    imageUrl: downloadUrl
-                  });
-                }
-              })
-              .catch(err => {
-                console.warn('Firebase Storage brand logo upload failed, trying local disk:', err);
-                return fetch('/api/upload-image', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ base64: compressedDataUrl, fileName: file.name })
-                })
-                .then(res => {
-                  if (!res.ok) throw new Error('File upload script failed');
-                  return res.json();
-                })
-                .then(data => {
-                  if (data.imageUrl && onSaveLogoConfig && logoConfig) {
-                    onSaveLogoConfig({
-                      ...logoConfig,
-                      imageUrl: data.imageUrl
-                    });
-                  }
-                });
-              })
-              .catch(finalErr => {
-                console.error('All uploader attempts failed, caching as base64 asset:', finalErr);
-                if (onSaveLogoConfig && logoConfig) {
-                  onSaveLogoConfig({
-                    ...logoConfig,
-                    imageUrl: compressedDataUrl
+                    imageUrl
                   });
                 }
               })
@@ -431,37 +442,12 @@ export default function AdminDashboard({
             ctx.drawImage(img, 0, 0, width, height);
             const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
             
-            // Attempt to upload first to persistent Firebase Storage
+            // Attempt to upload with local-first resilient fallback pipeline
             const uniqueName = `covers/cover_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`;
-            uploadBase64ToStorage(compressedDataUrl, uniqueName)
-              .then(downloadUrl => {
+            uploadImageWithFallback(compressedDataUrl, file.name, uniqueName)
+              .then(imageUrl => {
                 if (onSaveCoverPhoto) {
-                  onSaveCoverPhoto(downloadUrl);
-                }
-              })
-              .catch(err => {
-                console.warn('Firebase Storage upload failed, trying local disk uploader:', err);
-                return fetch('/api/upload-image', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ base64: compressedDataUrl, fileName: file.name })
-                })
-                .then(res => {
-                  if (!res.ok) throw new Error('File upload script failed');
-                  return res.json();
-                })
-                .then(data => {
-                  if (data.imageUrl && onSaveCoverPhoto) {
-                    onSaveCoverPhoto(data.imageUrl);
-                  } else {
-                    throw new Error('Image URL undefined in response');
-                  }
-                });
-              })
-              .catch(finalErr => {
-                console.error('All persistent upload pathways failed, saving as client-side base64:', finalErr);
-                if (onSaveCoverPhoto) {
-                  onSaveCoverPhoto(compressedDataUrl);
+                  onSaveCoverPhoto(imageUrl);
                 }
               })
               .finally(() => {
@@ -520,43 +506,13 @@ export default function AdminDashboard({
             // Compress to standard JPEG format (0.80 quality)
             const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.80);
             
-            // Try Firebase Storage first
+            // Attempt to upload with local-first resilient fallback pipeline
             const uniqueName = `portfolio/portfolio_${field}_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`;
-            uploadBase64ToStorage(compressedDataUrl, uniqueName)
-              .then(downloadUrl => {
+            uploadImageWithFallback(compressedDataUrl, file.name, uniqueName)
+              .then(imageUrl => {
                 setVisualsForm(prev => ({
                   ...prev,
-                  [field]: downloadUrl
-                }));
-              })
-              .catch(err => {
-                console.warn('Firebase Storage upload failed for portfolio visual, trying local server disk:', err);
-                // Post to the backend persistent image uploader API
-                return fetch('/api/upload-image', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ base64: compressedDataUrl, fileName: file.name })
-                })
-                .then(res => {
-                  if (!res.ok) throw new Error('File upload script failed');
-                  return res.json();
-                })
-                .then(data => {
-                  if (data.imageUrl) {
-                    setVisualsForm(prev => ({
-                      ...prev,
-                      [field]: data.imageUrl
-                    }));
-                  } else {
-                    throw new Error('Image URL undefined in response');
-                  }
-                });
-              })
-              .catch(finalErr => {
-                console.error('All portfolio asset uploads failed, falling back to client-sided base64:', finalErr);
-                setVisualsForm(prev => ({
-                  ...prev,
-                  [field]: compressedDataUrl
+                  [field]: imageUrl
                 }));
               })
               .finally(() => {
@@ -620,36 +576,11 @@ export default function AdminDashboard({
             ctx.drawImage(img, 0, 0, width, height);
             const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-            // Upload via Firebase Storage
+            // Attempt to upload with local-first resilient fallback pipeline
             const uniqueName = `slider/slider_${field}_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`;
-            uploadBase64ToStorage(compressedDataUrl, uniqueName)
-              .then(downloadUrl => {
-                const updated = { ...sliderConfig, [field]: downloadUrl };
-                setSliderConfig(updated);
-                saveSliderConfigToServer(updated);
-              })
-              .catch(err => {
-                console.warn('Firebase Storage upload failed for slider, trying server filesystem:', err);
-                return fetch('/api/upload-image', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ base64: compressedDataUrl, fileName: file.name })
-                })
-                .then(res => {
-                  if (!res.ok) throw new Error('File upload script failed');
-                  return res.json();
-                })
-                .then(data => {
-                  if (data.imageUrl) {
-                    const updated = { ...sliderConfig, [field]: data.imageUrl };
-                    setSliderConfig(updated);
-                    saveSliderConfigToServer(updated);
-                  }
-                });
-              })
-              .catch(finalErr => {
-                console.error('All slider upload avenues failed, saving base64:', finalErr);
-                const updated = { ...sliderConfig, [field]: compressedDataUrl };
+            uploadImageWithFallback(compressedDataUrl, file.name, uniqueName)
+              .then(imageUrl => {
+                const updated = { ...sliderConfig, [field]: imageUrl };
                 setSliderConfig(updated);
                 saveSliderConfigToServer(updated);
               })
@@ -727,32 +658,11 @@ export default function AdminDashboard({
             ctx.drawImage(img, 0, 0, width, height);
             const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-            // Upload via Firebase Storage
+            // Attempt to upload with local-first resilient fallback pipeline
             const uniqueName = `service-cards/card_${serviceId}_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`;
-            uploadBase64ToStorage(compressedDataUrl, uniqueName)
-              .then(downloadUrl => {
-                saveServiceCardImageToServer(serviceId, downloadUrl);
-              })
-              .catch(err => {
-                console.warn('Firebase Storage upload failed for card, trying server filesystem:', err);
-                return fetch('/api/upload-image', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ base64: compressedDataUrl, fileName: file.name })
-                })
-                .then(res => {
-                  if (!res.ok) throw new Error('File upload script failed');
-                  return res.json();
-                })
-                .then(data => {
-                  if (data.imageUrl) {
-                    saveServiceCardImageToServer(serviceId, data.imageUrl);
-                  }
-                });
-              })
-              .catch(finalErr => {
-                console.error('All card uploader avenues failed, saving base64:', finalErr);
-                saveServiceCardImageToServer(serviceId, compressedDataUrl);
+            uploadImageWithFallback(compressedDataUrl, file.name, uniqueName)
+              .then(imageUrl => {
+                saveServiceCardImageToServer(serviceId, imageUrl);
               })
               .finally(() => {
                 setIsUploadingCardImage(prev => ({ ...prev, [serviceId]: false }));
