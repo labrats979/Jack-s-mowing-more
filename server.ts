@@ -1,16 +1,102 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Firebase Firestore setup for real-time sync across all container instances
+let firebaseApp: any = null;
+let firestoreDb: any = null;
+let storageBucket: any = null;
+let firebaseConfig: any = null;
+
+try {
+  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(configPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+    if (firebaseConfig.storageBucket) {
+      storageBucket = getStorage(firebaseApp);
+      console.log(`🔥 Connected to Firebase Storage bucket: ${firebaseConfig.storageBucket}`);
+    }
+    console.log("🔥 Firebase Client Web SDK initialized successfully on backend server for global real-time synchronization!");
+  } else {
+    console.warn("⚠️ firebase-applet-config.json not found. Fallback to local files only.");
+  }
+} catch (err) {
+  console.error("❌ Failed to initialize Firebase on backend server:", err);
+}
+
+// Global cached config getter/setter with high-availability cloud backing & local disk fallback
+async function getConfig(key: string, defaultVal: any) {
+  const localPath = path.join(process.cwd(), "src", "data", `${key}_db.json`);
+  
+  if (firestoreDb) {
+    try {
+      const docRef = doc(firestoreDb, "site_configs", key);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const snapData = docSnap.data();
+        if (snapData && snapData.hasOwnProperty("data")) {
+          return snapData.data;
+        }
+        return snapData;
+      }
+    } catch (err: any) {
+      console.warn(`Firestore fallback warning: Error reading ${key} from Firestore, using local file backup instead. Details:`, err.message || err);
+    }
+  }
+
+  // Fallback to local JSON files
+  if (fs.existsSync(localPath)) {
+    try {
+      const fileData = fs.readFileSync(localPath, "utf-8").trim();
+      return fileData ? JSON.parse(fileData) : defaultVal;
+    } catch (e) {
+      console.warn(`Error reading local db file for ${key}:`, e);
+    }
+  }
+  return defaultVal;
+}
+
+async function saveConfig(key: string, value: any) {
+  // 1. Save to local disk first as a reliable backup
+  const localPath = path.join(process.cwd(), "src", "data", `${key}_db.json`);
+  const dirPath = path.dirname(localPath);
+  try {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+    fs.writeFileSync(localPath, JSON.stringify(value, null, 2), "utf-8");
+  } catch (err) {
+    console.error(`Error writing local backup file for ${key}:`, err);
+  }
+
+  // 2. Sync directly to Firestore for high-availability multi-instance mirroring
+  if (firestoreDb) {
+    try {
+      const docRef = doc(firestoreDb, "site_configs", key);
+      const payload = Array.isArray(value) ? { data: value } : value;
+      await setDoc(docRef, payload);
+      console.log(`📡 Successfully pushed changes for ${key} to public Firestore db.`);
+    } catch (err: any) {
+      console.warn(`Firestore sync transient warning: Error syncing ${key} to Firestore. Will continue using local filesystem backing. Details:`, err.message || err);
+    }
+  }
+}
 
 async function startServer() {
   const app = express();
@@ -109,14 +195,10 @@ Your goals:
   });
 
   // API Route for Fetching Persistent Bookings/Leads
-  app.get("/api/bookings", (req, res) => {
+  app.get("/api/bookings", async (req, res) => {
     try {
-      const dbPath = path.join(process.cwd(), "src", "data", "bookings_db.json");
-      if (!fs.existsSync(dbPath)) {
-        return res.json([]);
-      }
-      const data = fs.readFileSync(dbPath, "utf-8");
-      res.json(JSON.parse(data));
+      const bookings = await getConfig("bookings", []);
+      res.json(bookings);
     } catch (error: any) {
       console.error("Failed to read bookings database:", error);
       res.status(500).json({ error: "Failed to retrieve bookings." });
@@ -131,27 +213,13 @@ Your goals:
         return res.status(400).json({ error: "Booking lead details are incomplete." });
       }
 
-      const dbPath = path.join(process.cwd(), "src", "data", "bookings_db.json");
-      const dirPath = path.dirname(dbPath);
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-      }
-
-      let bookings = [];
-      if (fs.existsSync(dbPath)) {
-        try {
-          const content = fs.readFileSync(dbPath, "utf-8").trim();
-          bookings = content ? JSON.parse(content) : [];
-        } catch (_) {
-          bookings = [];
-        }
-      }
+      let bookings = await getConfig("bookings", []);
 
       // Avoid duplication
       const exists = bookings.some((b: any) => b.id === lead.id || (b.fullName === lead.fullName && b.createdAt === lead.createdAt));
       if (!exists) {
         bookings.unshift(lead);
-        fs.writeFileSync(dbPath, JSON.stringify(bookings, null, 2), "utf-8");
+        await saveConfig("bookings", bookings);
       }
 
       // Dispatch Email Notification!
@@ -159,13 +227,7 @@ Your goals:
       let emailError = "";
 
       // Load email settings database
-      const configPath = path.join(process.cwd(), "src", "data", "email_config.json");
-      let fileConfig: any = {};
-      if (fs.existsSync(configPath)) {
-        try {
-          fileConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-        } catch (_) {}
-      }
+      let fileConfig = await getConfig("email_config", {});
 
       const smtpUser = process.env.SMTP_USER || fileConfig.smtpUser || "jacks.mowing.and.more1@gmail.com";
       const smtpPass = process.env.SMTP_PASS || fileConfig.smtpPass || "";
@@ -293,14 +355,13 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for admin status changes or deletions
-  app.post("/api/bookings/save-all", (req, res) => {
+  app.post("/api/bookings/save-all", async (req, res) => {
     try {
       const { leads } = req.body;
       if (!Array.isArray(leads)) {
         return res.status(400).json({ error: "Leads array expected." });
       }
-      const dbPath = path.join(process.cwd(), "src", "data", "bookings_db.json");
-      fs.writeFileSync(dbPath, JSON.stringify(leads, null, 2), "utf-8");
+      await saveConfig("bookings", leads);
       res.json({ success: true, leads });
     } catch (err: any) {
       console.error("Failed to save bookings list:", err);
@@ -309,42 +370,30 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route to Load / Save Email Settings
-  app.get("/api/email-config", (req, res) => {
+  app.get("/api/email-config", async (req, res) => {
     try {
-      const configPath = path.join(process.cwd(), "src", "data", "email_config.json");
-      let config = {
+      const defaultMail = {
         recipientEmail: process.env.NOTIFICATION_RECIPIENT_EMAIL || "jacks.mowing.and.more1@gmail.com",
         smtpUser: process.env.SMTP_USER || "jacks.mowing.and.more1@gmail.com",
         smtpPass: process.env.SMTP_PASS ? "••••••••••••" : ""
       };
-
-      if (fs.existsSync(configPath)) {
-        try {
-          const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-          config.recipientEmail = raw.recipientEmail || config.recipientEmail;
-          config.smtpUser = raw.smtpUser || config.smtpUser;
-          if (raw.smtpPass) {
-            config.smtpPass = "••••••••••••";
-          }
-        } catch (_) {}
-      }
+      const raw = await getConfig("email_config", defaultMail);
+      const config = {
+        recipientEmail: raw.recipientEmail || defaultMail.recipientEmail,
+        smtpUser: raw.smtpUser || defaultMail.smtpUser,
+        smtpPass: raw.smtpPass ? "••••••••••••" : ""
+      };
       res.json(config);
     } catch (_) {
       res.status(500).json({ error: "Failed to retrieve configuration." });
     }
   });
 
-  app.post("/api/email-config", (req, res) => {
+  app.post("/api/email-config", async (req, res) => {
     try {
       const { recipientEmail, smtpUser, smtpPass } = req.body;
-      const configPath = path.join(process.cwd(), "src", "data", "email_config.json");
       
-      let config: any = {};
-      if (fs.existsSync(configPath)) {
-        try {
-          config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-        } catch (_) {}
-      }
+      const config = await getConfig("email_config", {});
 
       if (recipientEmail) config.recipientEmail = recipientEmail;
       if (smtpUser) config.smtpUser = smtpUser;
@@ -354,12 +403,7 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
         config.smtpPass = smtpPass;
       }
 
-      const dirPath = path.dirname(configPath);
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-      }
-
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+      await saveConfig("email_config", config);
       res.json({ success: true, message: "Notification settings updated persistently on the server." });
     } catch (_) {
       res.status(500).json({ error: "Failed to write config." });
@@ -421,66 +465,57 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Fetching Persistent Reviews/Testimonials
-  app.get("/api/reviews", (req, res) => {
+  app.get("/api/reviews", async (req, res) => {
     try {
-      const dbPath = path.join(process.cwd(), "src", "data", "reviews_db.json");
-      if (!fs.existsSync(dbPath)) {
-        const defaultReviews = [
-          {
-            id: 'test-1',
-            author: 'Eleanor Vance',
-            location: 'Milltown, NJ',
-            rating: 5,
-            projectType: 'Hardscape & Fire Pit Terrace',
-            content: 'The level of masonry and attention to detail surpassed everything we hoped for. The team aligned the stone joint lines perfectly with our living room windows, making the transition outside feel absolutely natural. Outstanding team.',
-            date: 'April 2026'
-          },
-          {
-            id: 'test-2',
-            author: 'Dr. Marcus Aris',
-            location: 'Milltown, NJ',
-            rating: 5,
-            projectType: 'Horticulture & Front Border Walkway',
-            content: 'They treated our soil like gold and replaced our dry clay with lush, organic planting beds. The custom boxwood layers and seasonal lavender flowers attract bees and look brilliant in the morning light.',
-            date: 'May 2026'
-          },
-          {
-            id: 'test-3',
-            author: 'Clara & Thomas Vance',
-            location: 'Milltown Resident',
-            rating: 5,
-            projectType: 'Soil Nutrition & Lawn Restoration',
-            content: 'Our lawns were dry and moss-filled. Jack\'s crew aerated, topseeded with premium fescue grass, and set up a fertilization routine. Our backyard is now thick and emerald green. Unmatched dedication!',
-            date: 'June 2026'
-          },
-          {
-            id: 'test-4',
-            author: 'Richard Finch',
-            location: 'Milltown, NJ',
-            rating: 5,
-            projectType: 'Precision Lawn Mowing',
-            content: 'I have used several lawn services before, but Jack\'s Mowing is on another level. Extremely crisp diagonal stripe lines, clean edges along the patio, and they blow every last blade of grass off my driveway.',
-            date: 'May 2026'
-          },
-          {
-            id: 'test-5',
-            author: 'Sarah Jenkins',
-            location: 'Milltown Property Owner',
-            rating: 5,
-            projectType: 'Outdoor LED Night Lighting',
-            content: 'Excellent customer service and fantastic results. They custom designed some low-voltage LED garden lighting that makes our backyard walkway look incredibly elegant after sunset.',
-            date: 'April 2026'
-          }
-        ];
-        const dirPath = path.dirname(dbPath);
-        if (!fs.existsSync(dirPath)) {
-          fs.mkdirSync(dirPath, { recursive: true });
+      const defaultReviews = [
+        {
+          id: 'test-1',
+          author: 'Eleanor Vance',
+          location: 'Milltown, NJ',
+          rating: 5,
+          projectType: 'Hardscape & Fire Pit Terrace',
+          content: 'The level of masonry and attention to detail surpassed everything we hoped for. The team aligned the stone joint lines perfectly with our living room windows, making the transition outside feel absolutely natural. Outstanding team.',
+          date: 'April 2026'
+        },
+        {
+          id: 'test-2',
+          author: 'Dr. Marcus Aris',
+          location: 'Milltown, NJ',
+          rating: 5,
+          projectType: 'Horticulture & Front Border Walkway',
+          content: 'They treated our soil like gold and replaced our dry clay with lush, organic planting beds. The custom boxwood layers and seasonal lavender flowers attract bees and look brilliant in the morning light.',
+          date: 'May 2026'
+        },
+        {
+          id: 'test-3',
+          author: 'Clara & Thomas Vance',
+          location: 'Milltown Resident',
+          rating: 5,
+          projectType: 'Soil Nutrition & Lawn Restoration',
+          content: 'Our lawns were dry and moss-filled. Jack\'s crew aerated, topseeded with premium fescue grass, and set up a fertilization routine. Our backyard is now thick and emerald green. Unmatched dedication!',
+          date: 'June 2026'
+        },
+        {
+          id: 'test-4',
+          author: 'Richard Finch',
+          location: 'Milltown, NJ',
+          rating: 5,
+          projectType: 'Precision Lawn Mowing',
+          content: 'I have used several lawn services before, but Jack\'s Mowing is on another level. Extremely crisp diagonal stripe lines, clean edges along the patio, and they blow every last blade of grass off my driveway.',
+          date: 'May 2026'
+        },
+        {
+          id: 'test-5',
+          author: 'Sarah Jenkins',
+          location: 'Milltown Property Owner',
+          rating: 5,
+          projectType: 'Outdoor LED Night Lighting',
+          content: 'Excellent customer service and fantastic results. They custom designed some low-voltage LED garden lighting that makes our backyard walkway look incredibly elegant after sunset.',
+          date: 'April 2026'
         }
-        fs.writeFileSync(dbPath, JSON.stringify(defaultReviews, null, 2), "utf-8");
-        return res.json(defaultReviews);
-      }
-      const data = fs.readFileSync(dbPath, "utf-8");
-      res.json(JSON.parse(data));
+      ];
+      const reviews = await getConfig("reviews", defaultReviews);
+      res.json(reviews);
     } catch (error: any) {
       console.error("Failed to read reviews database:", error);
       res.status(500).json({ error: "Failed to retrieve testimonials portfolio stats." });
@@ -488,71 +523,62 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Submitting a New Review (Saves persistently)
-  app.post("/api/reviews", (req, res) => {
+  app.post("/api/reviews", async (req, res) => {
     try {
       const { author, location, rating, projectType, content } = req.body;
       if (!author || !content) {
         return res.status(400).json({ error: "Author name and content reviews are mandatory." });
       }
 
-      const dbPath = path.join(process.cwd(), "src", "data", "reviews_db.json");
-      const dirPath = path.dirname(dbPath);
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-      }
+      const defaultReviews = [
+        {
+          id: 'test-1',
+          author: 'Eleanor Vance',
+          location: 'Milltown, NJ',
+          rating: 5,
+          projectType: 'Hardscape & Fire Pit Terrace',
+          content: 'The level of masonry and attention to detail surpassed everything we hoped for. The team aligned the stone joint lines perfectly with our living room windows, making the transition outside feel absolutely natural. Outstanding team.',
+          date: 'April 2026'
+        },
+        {
+          id: 'test-2',
+          author: 'Dr. Marcus Aris',
+          location: 'Milltown, NJ',
+          rating: 5,
+          projectType: 'Horticulture & Front Border Walkway',
+          content: 'They treated our soil like gold and replaced our dry clay with lush, organic planting beds. The custom boxwood layers and seasonal lavender flowers attract bees and look brilliant in the morning light.',
+          date: 'May 2026'
+        },
+        {
+          id: 'test-3',
+          author: 'Clara & Thomas Vance',
+          location: 'Milltown Resident',
+          rating: 5,
+          projectType: 'Soil Nutrition & Lawn Restoration',
+          content: 'Our lawns were dry and moss-filled. Jack\'s crew aerated, topseeded with premium fescue grass, and set up a fertilization routine. Our backyard is now thick and emerald green. Unmatched dedication!',
+          date: 'June 2026'
+        },
+        {
+          id: 'test-4',
+          author: 'Richard Finch',
+          location: 'Milltown, NJ',
+          rating: 5,
+          projectType: 'Precision Lawn Mowing',
+          content: 'I have used several lawn services before, but Jack\'s Mowing is on another level. Extremely crisp diagonal stripe lines, clean edges along the patio, and they blow every last blade of grass off my driveway.',
+          date: 'May 2026'
+        },
+        {
+          id: 'test-5',
+          author: 'Sarah Jenkins',
+          location: 'Milltown Property Owner',
+          rating: 5,
+          projectType: 'Outdoor LED Night Lighting',
+          content: 'Excellent customer service and fantastic results. They custom designed some low-voltage LED garden lighting that makes our backyard walkway look incredibly elegant after sunset.',
+          date: 'April 2026'
+        }
+      ];
 
-      let reviews = [];
-      if (fs.existsSync(dbPath)) {
-        reviews = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-      } else {
-        reviews = [
-          {
-            id: 'test-1',
-            author: 'Eleanor Vance',
-            location: 'Milltown, NJ',
-            rating: 5,
-            projectType: 'Hardscape & Fire Pit Terrace',
-            content: 'The level of masonry and attention to detail surpassed everything we hoped for. The team aligned the stone joint lines perfectly with our living room windows, making the transition outside feel absolutely natural. Outstanding team.',
-            date: 'April 2026'
-          },
-          {
-            id: 'test-2',
-            author: 'Dr. Marcus Aris',
-            location: 'Milltown, NJ',
-            rating: 5,
-            projectType: 'Horticulture & Front Border Walkway',
-            content: 'They treated our soil like gold and replaced our dry clay with lush, organic planting beds. The custom boxwood layers and seasonal lavender flowers attract bees and look brilliant in the morning light.',
-            date: 'May 2026'
-          },
-          {
-            id: 'test-3',
-            author: 'Clara & Thomas Vance',
-            location: 'Milltown Resident',
-            rating: 5,
-            projectType: 'Soil Nutrition & Lawn Restoration',
-            content: 'Our lawns were dry and moss-filled. Jack\'s crew aerated, topseeded with premium fescue grass, and set up a fertilization routine. Our backyard is now thick and emerald green. Unmatched dedication!',
-            date: 'June 2026'
-          },
-          {
-            id: 'test-4',
-            author: 'Richard Finch',
-            location: 'Milltown, NJ',
-            rating: 5,
-            projectType: 'Precision Lawn Mowing',
-            content: 'I have used several lawn services before, but Jack\'s Mowing is on another level. Extremely crisp diagonal stripe lines, clean edges along the patio, and they blow every last blade of grass off my driveway.',
-            date: 'May 2026'
-          },
-          {
-            id: 'test-5',
-            author: 'Sarah Jenkins',
-            location: 'Milltown Property Owner',
-            rating: 5,
-            projectType: 'Outdoor LED Night Lighting',
-            content: 'Excellent customer service and fantastic results. They custom designed some low-voltage LED garden lighting that makes our backyard walkway look incredibly elegant after sunset.',
-            date: 'April 2026'
-          }
-        ];
-      }
+      const reviews = await getConfig("reviews", defaultReviews);
 
       const newReview = {
         id: `custom-test-${Date.now()}`,
@@ -566,7 +592,7 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
       };
 
       reviews.unshift(newReview);
-      fs.writeFileSync(dbPath, JSON.stringify(reviews, null, 2), "utf-8");
+      await saveConfig("reviews", reviews);
       res.status(201).json(reviews);
     } catch (error: any) {
       console.error("Failed to write to reviews database:", error);
@@ -575,14 +601,13 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Admin Testimonial updates or deletions
-  app.post("/api/reviews/save-all", (req, res) => {
+  app.post("/api/reviews/save-all", async (req, res) => {
     try {
       const { reviews } = req.body;
       if (!Array.isArray(reviews)) {
         return res.status(400).json({ error: "Reviews array expected." });
       }
-      const dbPath = path.join(process.cwd(), "src", "data", "reviews_db.json");
-      fs.writeFileSync(dbPath, JSON.stringify(reviews, null, 2), "utf-8");
+      await saveConfig("reviews", reviews);
       res.json({ success: true, reviews });
     } catch (err: any) {
       console.error("Failed to save reviews list on server:", err);
@@ -591,14 +616,10 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Fetching Persistent Service/Portfolio Visuals
-  app.get("/api/visuals", (req, res) => {
+  app.get("/api/visuals", async (req, res) => {
     try {
-      const dbPath = path.join(process.cwd(), "src", "data", "visuals_db.json");
-      if (!fs.existsSync(dbPath)) {
-        return res.json({});
-      }
-      const data = fs.readFileSync(dbPath, "utf-8");
-      res.json(JSON.parse(data));
+      const visuals = await getConfig("visuals", {});
+      res.json(visuals);
     } catch (error: any) {
       console.error("Failed to read visuals database:", error);
       res.status(500).json({ error: "Failed to retrieve service portfolio pictures." });
@@ -606,15 +627,10 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Saving Persistent Service/Portfolio Visuals
-  app.post("/api/visuals", (req, res) => {
+  app.post("/api/visuals", async (req, res) => {
     try {
       const visuals = req.body;
-      const dbPath = path.join(process.cwd(), "src", "data", "visuals_db.json");
-      const dirPath = path.dirname(dbPath);
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-      }
-      fs.writeFileSync(dbPath, JSON.stringify(visuals, null, 2), "utf-8");
+      await saveConfig("visuals", visuals);
       res.json({ success: true, visuals });
     } catch (error: any) {
       console.error("Failed to save visuals to database:", error);
@@ -623,14 +639,11 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Fetching Persistent Cover Photo
-  app.get("/api/cover-photo", (req, res) => {
+  app.get("/api/cover-photo", async (req, res) => {
     try {
-      const dbPath = path.join(process.cwd(), "src", "data", "cover_photo_db.json");
-      if (!fs.existsSync(dbPath)) {
-        return res.json({ coverPhoto: '/src/assets/images/landscape_hero_1779327295782.png' });
-      }
-      const data = fs.readFileSync(dbPath, "utf-8");
-      res.json(JSON.parse(data));
+      const defaultCover = { coverPhoto: '/src/assets/images/landscape_hero_1779327295782.png' };
+      const config = await getConfig("cover_photo", defaultCover);
+      res.json(config);
     } catch (error: any) {
       console.error("Failed to read cover photo database:", error);
       res.status(500).json({ error: "Failed to retrieve cover photo choice." });
@@ -638,15 +651,10 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Saving Persistent Cover Photo
-  app.post("/api/cover-photo", (req, res) => {
+  app.post("/api/cover-photo", async (req, res) => {
     try {
       const { coverPhoto } = req.body;
-      const dbPath = path.join(process.cwd(), "src", "data", "cover_photo_db.json");
-      const dirPath = path.dirname(dbPath);
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-      }
-      fs.writeFileSync(dbPath, JSON.stringify({ coverPhoto }, null, 2), "utf-8");
+      await saveConfig("cover_photo", { coverPhoto });
       res.json({ success: true, coverPhoto });
     } catch (error: any) {
       console.error("Failed to save cover photo to database:", error);
@@ -655,20 +663,17 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Fetching Persistent Brand Logo Customizations
-  app.get("/api/brand-logo", (req, res) => {
+  app.get("/api/brand-logo", async (req, res) => {
     try {
-      const dbPath = path.join(process.cwd(), "src", "data", "brand_logo_db.json");
-      if (!fs.existsSync(dbPath)) {
-        return res.json({
-          logoType: "svg",
-          imageUrl: "",
-          svgTextTop: "Jack's",
-          svgTextBottom: "Mowing & More",
-          svgColor: "#dc2626"
-        });
-      }
-      const data = fs.readFileSync(dbPath, "utf-8");
-      res.json(JSON.parse(data));
+      const defaultLogo = {
+        logoType: "svg",
+        imageUrl: "",
+        svgTextTop: "Jack's",
+        svgTextBottom: "Mowing & More",
+        svgColor: "#dc2626"
+      };
+      const config = await getConfig("brand_logo", defaultLogo);
+      res.json(config);
     } catch (error: any) {
       console.error("Failed to read brand logo database:", error);
       res.status(500).json({ error: "Failed to retrieve brand logo configuration." });
@@ -676,15 +681,10 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Saving Persistent Brand Logo Customizations
-  app.post("/api/brand-logo", (req, res) => {
+  app.post("/api/brand-logo", async (req, res) => {
     try {
       const config = req.body;
-      const dbPath = path.join(process.cwd(), "src", "data", "brand_logo_db.json");
-      const dirPath = path.dirname(dbPath);
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-      }
-      fs.writeFileSync(dbPath, JSON.stringify(config, null, 2), "utf-8");
+      await saveConfig("brand_logo", config);
       res.json({ success: true, ...config });
     } catch (error: any) {
       console.error("Failed to save brand logo configuration database:", error);
@@ -693,20 +693,17 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Fetching Persistent Header/Footer Contact Information
-  app.get("/api/contact-info", (req, res) => {
+  app.get("/api/contact-info", async (req, res) => {
     try {
-      const dbPath = path.join(process.cwd(), "src", "data", "contact_info_db.json");
-      if (!fs.existsSync(dbPath)) {
-        return res.json({
-          phone: "+1 (732) 790-9789",
-          phoneRaw: "1-732-790-9789",
-          email: "estimates@jacksmowing.com",
-          location: "Milltown, NJ",
-          description: "Architectural landscape design, precision lawn mowing, lawn recovery, and custom stonemasonry. Serving Milltown with pride and premium cleanup."
-        });
-      }
-      const data = fs.readFileSync(dbPath, "utf-8");
-      res.json(JSON.parse(data));
+      const defaultContact = {
+        phone: "+1 (732) 790-9789",
+        phoneRaw: "1-732-790-9789",
+        email: "estimates@jacksmowing.com",
+        location: "Milltown, NJ",
+        description: "Architectural landscape design, precision lawn mowing, lawn recovery, and custom stonemasonry. Serving Milltown with pride and premium cleanup."
+      };
+      const config = await getConfig("contact_info", defaultContact);
+      res.json(config);
     } catch (error: any) {
       console.error("Failed to read contact info database:", error);
       res.status(500).json({ error: "Failed to retrieve contact info choice." });
@@ -714,15 +711,10 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Saving Persistent Header/Footer Contact Information
-  app.post("/api/contact-info", (req, res) => {
+  app.post("/api/contact-info", async (req, res) => {
     try {
       const config = req.body;
-      const dbPath = path.join(process.cwd(), "src", "data", "contact_info_db.json");
-      const dirPath = path.dirname(dbPath);
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-      }
-      fs.writeFileSync(dbPath, JSON.stringify(config, null, 2), "utf-8");
+      await saveConfig("contact_info", config);
       res.json({ success: true, ...config });
     } catch (error: any) {
       console.error("Failed to save contact info database:", error);
@@ -731,19 +723,16 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Fetching Persistent Interactive Portfolio Slider Config
-  app.get("/api/portfolio-slider", (req, res) => {
+  app.get("/api/portfolio-slider", async (req, res) => {
     try {
-      const dbPath = path.join(process.cwd(), "src", "data", "portfolio_slider_db.json");
-      if (!fs.existsSync(dbPath)) {
-        return res.json({
-          beforeImg: "/src/assets/images/garden_beds_1779327341663.png",
-          beforeLabel: "Dry Weedy Clay Lot (Before)",
-          afterImg: "/src/assets/images/garden_beds_1779327341663.png",
-          afterLabel: "Lined Botanical Walkway (After)"
-        });
-      }
-      const data = fs.readFileSync(dbPath, "utf-8");
-      res.json(JSON.parse(data));
+      const defaultSlider = {
+        beforeImg: "/src/assets/images/garden_beds_1779327341663.png",
+        beforeLabel: "Dry Weedy Clay Lot (Before)",
+        afterImg: "/src/assets/images/garden_beds_1779327341663.png",
+        afterLabel: "Lined Botanical Walkway (After)"
+      };
+      const config = await getConfig("portfolio_slider", defaultSlider);
+      res.json(config);
     } catch (error: any) {
       console.error("Failed to read portfolio slider database:", error);
       res.status(500).json({ error: "Failed to retrieve portfolio slider settings." });
@@ -751,15 +740,10 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Saving Persistent Interactive Portfolio Slider Config
-  app.post("/api/portfolio-slider", (req, res) => {
+  app.post("/api/portfolio-slider", async (req, res) => {
     try {
       const config = req.body;
-      const dbPath = path.join(process.cwd(), "src", "data", "portfolio_slider_db.json");
-      const dirPath = path.dirname(dbPath);
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-      }
-      fs.writeFileSync(dbPath, JSON.stringify(config, null, 2), "utf-8");
+      await saveConfig("portfolio_slider", config);
       res.json({ success: true, ...config });
     } catch (error: any) {
       console.error("Failed to save portfolio slider database:", error);
@@ -768,24 +752,20 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Fetching Persistent Service Card Grid Images
-  app.get("/api/service-card-images", (req, res) => {
+  app.get("/api/service-card-images", async (req, res) => {
     try {
-      const dbPath = path.join(process.cwd(), "src", "data", "service_card_images_db.json");
-      if (!fs.existsSync(dbPath)) {
-        // Return default map
-        return res.json({
-          'service-l-mowing': '/src/assets/images/lawn_mowing_after_1779586183040.png',
-          'service-l-cleanup': 'https://images.unsplash.com/photo-1534710951274-1851d3061271?auto=format&fit=crop&q=80&w=800',
-          'service-l-landscape': 'https://images.unsplash.com/photo-1558904541-efa8c1a68fa6?auto=format&fit=crop&q=80&w=800',
-          'service-l-hedge': 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&q=80&w=800',
-          'service-l-mulch': 'https://images.unsplash.com/photo-1598902108854-10e335adac99?auto=format&fit=crop&q=80&w=800',
-          'service-l-weed': 'https://images.unsplash.com/photo-1507036066871-b708937449ab?auto=format&fit=crop&q=80&w=800',
-          'service-l-fertilizer': 'https://images.unsplash.com/photo-1584473457406-6240486418e9?auto=format&fit=crop&q=80&w=800',
-          'service-l-restoration': 'https://images.unsplash.com/photo-1535083783855-76ae62b2914e?auto=format&fit=crop&q=80&w=800'
-        });
-      }
-      const data = fs.readFileSync(dbPath, "utf-8");
-      res.json(JSON.parse(data));
+      const defaultCardImages = {
+        'service-l-mowing': '/src/assets/images/lawn_mowing_after_1779586183040.png',
+        'service-l-cleanup': 'https://images.unsplash.com/photo-1534710951274-1851d3061271?auto=format&fit=crop&q=80&w=800',
+        'service-l-landscape': 'https://images.unsplash.com/photo-1558904541-efa8c1a68fa6?auto=format&fit=crop&q=80&w=800',
+        'service-l-hedge': 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&q=80&w=800',
+        'service-l-mulch': 'https://images.unsplash.com/photo-1598902108854-10e335adac99?auto=format&fit=crop&q=80&w=800',
+        'service-l-weed': 'https://images.unsplash.com/photo-1507036066871-b708937449ab?auto=format&fit=crop&q=80&w=800',
+        'service-l-fertilizer': 'https://images.unsplash.com/photo-1584473457406-6240486418e9?auto=format&fit=crop&q=80&w=800',
+        'service-l-restoration': 'https://images.unsplash.com/photo-1535083783855-76ae62b2914e?auto=format&fit=crop&q=80&w=800'
+      };
+      const config = await getConfig("service_card_images", defaultCardImages);
+      res.json(config);
     } catch (error: any) {
       console.error("Failed to read service card images database:", error);
       res.status(500).json({ error: "Failed to retrieve service card images." });
@@ -793,15 +773,10 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Saving Persistent Service Card Grid Images
-  app.post("/api/service-card-images", (req, res) => {
+  app.post("/api/service-card-images", async (req, res) => {
     try {
       const config = req.body;
-      const dbPath = path.join(process.cwd(), "src", "data", "service_card_images_db.json");
-      const dirPath = path.dirname(dbPath);
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-      }
-      fs.writeFileSync(dbPath, JSON.stringify(config, null, 2), "utf-8");
+      await saveConfig("service_card_images", config);
       res.json({ success: true, config });
     } catch (error: any) {
       console.error("Failed to save service card images database:", error);
@@ -860,7 +835,7 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   });
 
   // API Route for Handholding custom image physical file uploads
-  app.post("/api/upload-image", (req, res) => {
+  app.post("/api/upload-image", async (req, res) => {
     try {
       const { base64, fileName } = req.body;
       if (!base64 || !fileName) {
@@ -870,7 +845,9 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
       // Detect and strip standard Base64 URI prefixes (e.g. data:image/jpeg;base64,...)
       const matches = base64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
       let base64Data = base64;
+      let mimeType = "image/jpeg";
       if (matches && matches.length === 3) {
+        mimeType = matches[1];
         base64Data = matches[2];
       }
 
@@ -879,6 +856,7 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
       const cleanedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
       const safeFileName = `uploaded_${safeSuffix}_${cleanedFileName}`;
       
+      // Save locally as a secondary backup/fallback lane
       const uploadsDir = path.join(process.cwd(), "uploads");
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
@@ -887,8 +865,22 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
       const destPath = path.join(uploadsDir, safeFileName);
       fs.writeFileSync(destPath, buffer);
 
-      // Return the stable relative URL path inside root uploads route
-      const imageUrl = `/uploads/${safeFileName}`;
+      let imageUrl = `/uploads/${safeFileName}`;
+
+      // Upload directly to Firebase Storage bucket in production mode
+      if (storageBucket && firebaseConfig && firebaseConfig.storageBucket) {
+        try {
+          const fileRef = ref(storageBucket, `uploads/${safeFileName}`);
+          const uploadResult = await uploadBytes(fileRef, buffer, {
+            contentType: mimeType,
+          });
+          imageUrl = await getDownloadURL(uploadResult.ref);
+          console.log(`📡 Clean copy backed up to Firebase Storage bucket at ${imageUrl}`);
+        } catch (stErr: any) {
+          console.warn("⚠️ Firebase Storage bucket write failed, utilizing local file fallback URL:", stErr.message || stErr);
+        }
+      }
+
       res.json({ imageUrl });
     } catch (err: any) {
       console.error("Image upload processing error:", err);

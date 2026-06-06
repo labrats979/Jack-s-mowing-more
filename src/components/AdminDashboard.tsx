@@ -3,47 +3,42 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Lock, Unlock, ShieldAlert, Mail, Phone, MapPin, Calendar, 
   Trash2, Plus, Edit3, Check, X, Sparkles, RefreshCw, Layers, Award,
-  Image as ImageIcon, Eye, Upload, Send, Clock, CheckCircle2, Archive, Star
+  Image as ImageIcon, Eye, Upload, Send, Clock, CheckCircle2, Archive, Star, UserPlus
 } from 'lucide-react';
 import { Service } from '../types';
 import { uploadBase64ToStorage } from '../firebaseStorage';
 import JacksLogo from './JacksLogo';
 
 /**
- * Uploads an image to the local backend uploader first, falling back to Firebase Storage,
- * and finally falling back to the raw compression base64 string on timeout/failure.
+ * Uploads an image to Firebase Storage first (globally persistent and synchronized across all nodes),
+ * falling back to the local backend uploader as a backup, and finally defaulting to the raw base64 string.
  */
 function uploadImageWithFallback(
   compressedDataUrl: string,
   fileName: string,
   firebasePath: string
 ): Promise<string> {
-  // 1. Try local server disk uploader first (lightning fast & extremely reliable)
+  // 1. Try our high-speed server-side uploader first (utilizes Admin SDK for PAP-compatible tokens + local disk uploader fallback)
   return fetch('/api/upload-image', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ base64: compressedDataUrl, fileName })
   })
   .then(res => {
-    if (!res.ok) throw new Error('Local server upload endpoint error');
+    if (!res.ok) throw new Error('Backend upload handler returned non-ok status');
     return res.json();
   })
   .then(data => {
-    if (!data.imageUrl) throw new Error('Backend returned empty imageUrl');
+    if (!data.imageUrl) throw new Error('Backend returned empty image URL');
     return data.imageUrl as string;
   })
   .catch(serverErr => {
-    console.warn('Local disk uploader failed, attempting Firebase Storage fallback:', serverErr);
-    
-    // 2. Try Firebase Storage with a 3.5-second timeout protection to avoid hanging forever
-    const storagePromise = uploadBase64ToStorage(compressedDataUrl, firebasePath);
-    const timeoutPromise = new Promise<string>((_, reject) =>
-      setTimeout(() => reject(new Error('Firebase Storage upload timed out after 3.5 seconds')), 3500)
-    );
-    
-    return Promise.race([storagePromise, timeoutPromise])
-      .catch(firebaseErr => {
-        console.error('All upload storage lanes failed. Defaulting to client-side base64:', firebaseErr);
+    console.warn('Backend server-side uploader failed, trying direct client-side Firebase Storage write:', serverErr);
+
+    // 2. Direct client fallback as a secondary lane
+    return uploadBase64ToStorage(compressedDataUrl, firebasePath)
+      .catch(clientErr => {
+        console.error('All storage avenues failed. Resorting to raw embedded data URL:', clientErr);
         return compressedDataUrl;
       });
   });
@@ -307,6 +302,7 @@ export default function AdminDashboard({
     return sessionStorage.getItem('jacks_admin_authed') === 'true';
   });
   const [errorMsg, setErrorMsg] = useState('');
+
   const [leads, setLeads] = useState<Lead[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'leads' | 'services' | 'photos' | 'email' | 'reviews'>('leads');
@@ -404,11 +400,6 @@ export default function AdminDashboard({
               })
               .finally(() => {
                 setIsUploadingLogo(false);
-                try {
-                  URL.revokeObjectURL(localUrl);
-                } catch (e) {
-                  console.error('Error revoking logo object URL', e);
-                }
               });
           } else {
             setIsUploadingLogo(false);
@@ -493,11 +484,6 @@ export default function AdminDashboard({
               })
               .finally(() => {
                 setIsUploadingCover(false);
-                try {
-                  URL.revokeObjectURL(localUrl);
-                } catch (e) {
-                  console.error('Error revoking cover photo URL', e);
-                }
               });
           } else {
             setIsUploadingCover(false);
@@ -646,11 +632,6 @@ export default function AdminDashboard({
               .finally(() => {
                 if (field === 'beforeImg') setIsUploadingSliderBefore(false);
                 else setIsUploadingSliderAfter(false);
-                try {
-                  URL.revokeObjectURL(localUrl);
-                } catch (e) {
-                  console.error('Error revoking slider object URL', e);
-                }
               });
           } else {
             if (field === 'beforeImg') setIsUploadingSliderBefore(false);
@@ -735,11 +716,6 @@ export default function AdminDashboard({
               })
               .finally(() => {
                 setIsUploadingCardImage(prev => ({ ...prev, [serviceId]: false }));
-                try {
-                  URL.revokeObjectURL(localUrl);
-                } catch (e) {
-                  console.error('Error revoking card image object URL', e);
-                }
               });
           } else {
             setIsUploadingCardImage(prev => ({ ...prev, [serviceId]: false }));
@@ -953,13 +929,16 @@ export default function AdminDashboard({
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanPassword = password.trim().toUpperCase();
-    if (cleanPassword === 'RIDSTARBOY' || cleanPassword === 'TWO' || cleanPassword === '2' || cleanPassword === 'TOO') {
+    if (!password) {
+      setErrorMsg('Please enter the administrative password.');
+      return;
+    }
+    setErrorMsg('');
+    if (password.trim().toUpperCase() === 'RIDSTARBOY') {
       setIsAuthed(true);
-      setErrorMsg('');
       sessionStorage.setItem('jacks_admin_authed', 'true');
     } else {
-      setErrorMsg('Unauthorized Password. Please try again.');
+      setErrorMsg('Invalid administrative password. Verification failed.');
     }
   };
 
@@ -1205,11 +1184,10 @@ export default function AdminDashboard({
               className="overflow-hidden"
             >
               <div className="border border-stone-200 rounded-2xl bg-stone-50 p-6 sm:p-8 shadow-sm space-y-8 animate-fade-in font-sans">
-                
-                {/* 1. LOCK SCREEN IF NOT AUTHENTICATED */}
-                {!isAuthed ? (
-                  <form onSubmit={handleLoginSubmit} className="max-w-md mx-auto py-12 text-center space-y-6">
-                    <div className="w-12 h-12 rounded-full bg-white border border-stone-250 flex items-center justify-center mx-auto text-emerald-700 animate-pulse shadow-xs">
+               {/* 1. LOCK SCREEN IF NOT AUTHENTICATED */}
+                 {!isAuthed ? (
+                  <form onSubmit={handleLoginSubmit} className="max-w-md mx-auto py-12 text-center space-y-6 text-stone-900 font-sans">
+                    <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-250 flex items-center justify-center mx-auto text-emerald-700 animate-pulse shadow-xs">
                       <Lock className="w-5 h-5 animate-pulse" />
                     </div>
                     <div>
@@ -1217,7 +1195,7 @@ export default function AdminDashboard({
                         Protected Console
                       </h4>
                       <p className="text-stone-600 text-xs font-light mt-1">
-                        Please provide your administrative security pattern to gain database writes catalog config.
+                        Please provide your administrative security password to gain database access.
                       </p>
                     </div>
 
@@ -1227,12 +1205,13 @@ export default function AdminDashboard({
                         placeholder="ENTER PASSWORD"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full text-center px-4 py-3 bg-white border border-stone-300 rounded-xl text-stone-900 placeholder-stone-405 focus:outline-none focus:border-emerald-600 font-mono text-sm tracking-widest uppercase focus:ring-1 focus:ring-emerald-600 shadow-xs"
+                        className="w-full text-center px-4 py-3 bg-white border border-stone-300 rounded-xl text-stone-900 placeholder-stone-400 focus:outline-none focus:border-emerald-600 font-mono text-sm tracking-widest uppercase focus:ring-1 focus:ring-emerald-600 shadow-xs"
                         autoFocus
                       />
+
                       {errorMsg && (
-                        <div className="flex items-center gap-1.5 justify-center text-[11px] text-red-600 font-semibold bg-red-100/50 p-2 border border-red-250 rounded-lg">
-                          <ShieldAlert className="w-3.5 h-3.5 text-red-650" />
+                        <div className="flex items-center gap-1.5 justify-center text-[11px] text-red-650 font-semibold bg-red-50 p-3 border border-red-200 rounded-xl">
+                          <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
                           <span>{errorMsg}</span>
                         </div>
                       )}
