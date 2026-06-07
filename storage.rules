@@ -1,0 +1,32 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Portfolios, sliders, and service cover uploads
+    match /uploads/{allPaths=**} {
+      // Anyone can read dynamic public media, but writing is blocked on the client side.
+      // High-integrity modifications are proxied and secured by our backend server (using Firebase Admin SDK).
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /portfolio/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /slider/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /service-cards/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Default deny catch-all for all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
