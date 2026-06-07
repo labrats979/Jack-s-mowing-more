@@ -10,6 +10,7 @@ import nodemailer from "nodemailer";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import admin from "firebase-admin";
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ const FORCE_LOCAL_FREE_TIER_BACKEND = false;
 let firebaseApp: any = null;
 let firestoreDb: any = null;
 let storageBucket: any = null;
+let adminBucket: any = null;
 let firebaseConfig: any = null;
 
 if (!FORCE_LOCAL_FREE_TIER_BACKEND) {
@@ -38,6 +40,16 @@ if (!FORCE_LOCAL_FREE_TIER_BACKEND) {
       if (firebaseConfig.storageBucket) {
         storageBucket = getStorage(firebaseApp);
         console.log(`🔥 Connected to Firebase Storage bucket: ${firebaseConfig.storageBucket}`);
+
+        // Initialize Admin SDK with service/ambient credentials
+        if (admin.apps.length === 0) {
+          admin.initializeApp({
+            projectId: firebaseConfig.projectId,
+            storageBucket: firebaseConfig.storageBucket,
+          });
+        }
+        adminBucket = admin.storage().bucket(firebaseConfig.storageBucket);
+        console.log(`🔥 Firebase Admin SDK initialized! Connected to Admin bucket: ${firebaseConfig.storageBucket}`);
       }
       console.log("🔥 Firebase Client Web SDK initialized successfully on backend server for global real-time synchronization!");
     } else {
@@ -977,8 +989,24 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
 
       let imageUrl = `/uploads/${safeFileName}`;
 
-      // Upload directly to Firebase Storage bucket in production mode
-      if (storageBucket && firebaseConfig && firebaseConfig.storageBucket) {
+      // Upload directly to Firebase Storage bucket using Admin SDK or Client SDK fallback
+      if (adminBucket && firebaseConfig && firebaseConfig.storageBucket) {
+        try {
+          const fileRef = adminBucket.file(`uploads/${safeFileName}`);
+          await fileRef.save(buffer, {
+            metadata: {
+              contentType: mimeType,
+              metadata: {
+                firebaseStorageDownloadTokens: safeSuffix,
+              },
+            },
+          });
+          imageUrl = `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/${encodeURIComponent(`uploads/${safeFileName}`)}?alt=media&token=${safeSuffix}`;
+          console.log(`📡 Secure copy backed up to Firebase Storage via Admin SDK at ${imageUrl}`);
+        } catch (stErr: any) {
+          console.warn("⚠️ Firebase Admin Storage write failed:", stErr.message || stErr);
+        }
+      } else if (storageBucket && firebaseConfig && firebaseConfig.storageBucket) {
         try {
           const fileRef = ref(storageBucket, `uploads/${safeFileName}`);
           const uploadResult = await uploadBytes(fileRef, buffer, {
