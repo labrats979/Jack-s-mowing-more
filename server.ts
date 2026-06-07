@@ -989,31 +989,39 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
 
       let imageUrl = `/uploads/${safeFileName}`;
 
-      // Upload directly to Firebase Storage bucket using Admin SDK or Client SDK fallback
-      if (adminBucket && firebaseConfig && firebaseConfig.storageBucket) {
+      // Upload directly to Firebase Storage bucket using Admin SDK or Client SDK fallback with robust 2-second timeout protect
+      if ((adminBucket || storageBucket) && firebaseConfig && firebaseConfig.storageBucket) {
         try {
-          const fileRef = adminBucket.file(`uploads/${safeFileName}`);
-          await fileRef.save(buffer, {
-            metadata: {
-              contentType: mimeType,
-              metadata: {
-                firebaseStorageDownloadTokens: safeSuffix,
-              },
-            },
-          });
-          imageUrl = `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/${encodeURIComponent(`uploads/${safeFileName}`)}?alt=media&token=${safeSuffix}`;
-          console.log(`📡 Secure copy backed up to Firebase Storage via Admin SDK at ${imageUrl}`);
-        } catch (stErr: any) {
-          console.warn("⚠️ Firebase Admin Storage write failed:", stErr.message || stErr);
-        }
-      } else if (storageBucket && firebaseConfig && firebaseConfig.storageBucket) {
-        try {
-          const fileRef = ref(storageBucket, `uploads/${safeFileName}`);
-          const uploadResult = await uploadBytes(fileRef, buffer, {
-            contentType: mimeType,
-          });
-          imageUrl = await getDownloadURL(uploadResult.ref);
-          console.log(`📡 Clean copy backed up to Firebase Storage bucket at ${imageUrl}`);
+          const uploadPromise = (async () => {
+            if (adminBucket) {
+              const fileRef = adminBucket.file(`uploads/${safeFileName}`);
+              await fileRef.save(buffer, {
+                metadata: {
+                  contentType: mimeType,
+                  metadata: {
+                    firebaseStorageDownloadTokens: safeSuffix,
+                  },
+                },
+              });
+              return `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/${encodeURIComponent(`uploads/${safeFileName}`)}?alt=media&token=${safeSuffix}`;
+            } else {
+              const fileRef = ref(storageBucket, `uploads/${safeFileName}`);
+              const uploadResult = await uploadBytes(fileRef, buffer, {
+                contentType: mimeType,
+              });
+              return await getDownloadURL(uploadResult.ref);
+            }
+          })();
+
+          // Promise.race to abort if the cloud sync hangs for over 2000ms
+          imageUrl = await Promise.race([
+            uploadPromise,
+            new Promise<string>((resolve) => setTimeout(() => {
+              console.warn("⚠️ Firebase Storage cloud upload sync timed out after 2000ms, falling back to local storage path.");
+              resolve(`/uploads/${safeFileName}`);
+            }, 2000))
+          ]);
+          console.log(`📡 Clean copy backed up to Firebase Storage or local fallback: ${imageUrl}`);
         } catch (stErr: any) {
           console.warn("⚠️ Firebase Storage bucket write failed, utilizing local file fallback URL:", stErr.message || stErr);
         }
