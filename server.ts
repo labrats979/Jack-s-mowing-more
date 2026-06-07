@@ -751,6 +751,106 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
     }
   });
 
+  // API Route for Fetching Persistent Mowing Services List Config
+  app.get("/api/services", async (req, res) => {
+    try {
+      const defaultServices = [
+        {
+          id: 'service-l-mowing',
+          title: 'Lawn Mowing',
+          category: 'Property Care',
+          description: 'We provide regular lawn mowing for a clean, even yard.',
+          priceEstimate: '$20 - $30+',
+          features: ['Licensed cut geometry', 'Premium string edging', 'Sidewalk & driveway blow-off'],
+          iconName: 'sparkles'
+        },
+        {
+          id: 'service-l-cleanup',
+          title: 'Leaf Cleanup',
+          category: 'Seasonal Care',
+          description: 'We remove leaves to keep your lawn clear and fresh.',
+          priceEstimate: '$150+',
+          features: ['Full seasonal lawn clearing', 'Garden beds vacuum sweep', 'Gutters & entry blowing'],
+          iconName: 'shovel'
+        },
+        {
+          id: 'service-l-landscape',
+          title: 'Landscape Design & Installation',
+          category: 'Landscape Construction',
+          description: 'We design and install custom landscapes to transform your space.',
+          priceEstimate: 'Custom Proposal',
+          features: ['Professional onsite alignment', 'Hand-picked specimen plants', 'Mycorrhizae root pre-treatment'],
+          iconName: 'tree'
+        },
+        {
+          id: 'service-l-hedge',
+          title: 'Hedge Trimming',
+          category: 'Shrub & Plant Care',
+          description: 'We trim hedges for a neat, well-maintained look.',
+          priceEstimate: '$80+',
+          features: ['Symmetrical line shaping', 'Encourages dense, healthy leafy structures', 'Full clipping collection & cleanup'],
+          iconName: 'tree'
+        },
+        {
+          id: 'service-l-mulch',
+          title: 'Mulch Installation',
+          category: 'Soil & Bed Health',
+          description: 'We install mulch to protect and nourish your garden beds.',
+          priceEstimate: '$250+',
+          features: ['Consistent 2-3 in depth', 'Vibrant visual border contrast', 'Natural weed barrier protection'],
+          iconName: 'shovel'
+        },
+        {
+          id: 'service-l-weed',
+          title: 'Weed Removal',
+          category: 'Garden Maintenance',
+          description: 'We clear weeds to keep your garden tidy and healthy.',
+          priceEstimate: '$90+',
+          features: ['Root-level absolute pulling', 'Pet & child friendly deterrents', 'Ongoing garden bed health monitoring'],
+          iconName: 'hammer'
+        },
+        {
+          id: 'service-l-fertilizer',
+          title: 'Fertilizer',
+          category: 'Lawn Nutrition',
+          description: 'We apply fertilizer to promote strong, healthy grass growth.',
+          priceEstimate: '$65+',
+          features: ['Macro-nutrient seasonal blends', 'Triggers rich deep green pigment', 'Enhances drought & cold tolerance'],
+          iconName: 'sun'
+        },
+        {
+          id: 'service-l-restoration',
+          title: 'Lawn Restoration',
+          category: 'Turf Rejuvenation',
+          description: 'We revive damaged lawns, bringing them back to full health and beauty.',
+          priceEstimate: '$350+',
+          features: ['Core compaction de-relief', 'High-germination hybrid seeds', 'Rapid healthy grass recovery'],
+          iconName: 'droplet'
+        }
+      ];
+      const services = await getConfig("services", defaultServices);
+      res.json(services);
+    } catch (error: any) {
+      console.error("Failed to read services database:", error);
+      res.status(500).json({ error: "Failed to retrieve mowing services." });
+    }
+  });
+
+  // API Route for Saving Persistent Mowing Services List Config
+  app.post("/api/services", async (req, res) => {
+    try {
+      const services = req.body;
+      if (!Array.isArray(services)) {
+        return res.status(400).json({ error: "Services array is expected." });
+      }
+      await saveConfig("services", services);
+      res.json({ success: true, services });
+    } catch (error: any) {
+      console.error("Failed to save services database:", error);
+      res.status(500).json({ error: "Failed to persist mowing services configurations." });
+    }
+  });
+
   // API Route for Fetching Persistent Service Card Grid Images
   app.get("/api/service-card-images", async (req, res) => {
     try {

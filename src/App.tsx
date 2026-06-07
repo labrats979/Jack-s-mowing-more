@@ -176,7 +176,7 @@ export default function App() {
     });
   };
 
-  // Load initial services from local storage or defaults
+  // Load initial services from local storage or defaults, with dynamic Firestore sync
   const [services, setServices] = useState<Service[]>(() => {
     const saved = localStorage.getItem('jacks_mowing_services_v2');
     if (saved) {
@@ -188,6 +188,24 @@ export default function App() {
     }
     return INITIAL_SERVICES;
   });
+
+  // Sync services from backend Firestore database on mount
+  useEffect(() => {
+    fetch('/api/services')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to retrieve services');
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setServices(data);
+          localStorage.setItem('jacks_mowing_services_v2', JSON.stringify(data));
+        }
+      })
+      .catch(err => {
+        console.warn('Could not sync services with Firestore database, using local storage fallback:', err);
+      });
+  }, []);
 
   // Track page routing: 'home' or a specific service view (e.g., 'leaf-cleanup')
   const [currentActiveView, setCurrentActiveView] = useState<string>('home');
@@ -250,11 +268,37 @@ export default function App() {
   const handleSaveServices = (updated: Service[]) => {
     setServices(updated);
     localStorage.setItem('jacks_mowing_services_v2', JSON.stringify(updated));
+
+    fetch('/api/services', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Save services failed');
+      return res.json();
+    })
+    .catch(err => {
+      console.error('Failed to persist services config to Firestore database:', err);
+    });
   };
 
   const handleRestoreDefaults = () => {
     setServices(INITIAL_SERVICES);
     localStorage.setItem('jacks_mowing_services_v2', JSON.stringify(INITIAL_SERVICES));
+
+    fetch('/api/services', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(INITIAL_SERVICES)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Restore default services failed');
+      return res.json();
+    })
+    .catch(err => {
+      console.error('Failed to restore default services config to Firestore database:', err);
+    });
   };
 
   return (
