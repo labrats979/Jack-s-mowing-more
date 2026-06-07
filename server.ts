@@ -16,33 +16,43 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Firebase Firestore setup for real-time sync across all container instances
+// Configuration flags for Database Backend
+// Set FORCE_LOCAL_FREE_TIER_BACKEND to true to switch to a 100% free-tier, permanent, and private
+// server-side file-system database and local disk storage. This replaces external shared cloud sync
+// (Firebase Firestore & Firebase Storage), ensuring your uploaded photos and configurations stay completely
+// private to your own server domain, with absolutely zero external subscription costs or query limits.
+const FORCE_LOCAL_FREE_TIER_BACKEND = true;
+
 let firebaseApp: any = null;
 let firestoreDb: any = null;
 let storageBucket: any = null;
 let firebaseConfig: any = null;
 
-try {
-  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-  if (fs.existsSync(configPath)) {
-    firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-    firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
-    if (firebaseConfig.storageBucket) {
-      storageBucket = getStorage(firebaseApp);
-      console.log(`🔥 Connected to Firebase Storage bucket: ${firebaseConfig.storageBucket}`);
+if (!FORCE_LOCAL_FREE_TIER_BACKEND) {
+  try {
+    const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+    if (fs.existsSync(configPath)) {
+      firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+      firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+      if (firebaseConfig.storageBucket) {
+        storageBucket = getStorage(firebaseApp);
+        console.log(`🔥 Connected to Firebase Storage bucket: ${firebaseConfig.storageBucket}`);
+      }
+      console.log("🔥 Firebase Client Web SDK initialized successfully on backend server for global real-time synchronization!");
+    } else {
+      console.warn("⚠️ firebase-applet-config.json not found. Fallback to local files only.");
     }
-    console.log("🔥 Firebase Client Web SDK initialized successfully on backend server for global real-time synchronization!");
-  } else {
-    console.warn("⚠️ firebase-applet-config.json not found. Fallback to local files only.");
+  } catch (err) {
+    console.error("❌ Failed to initialize Firebase on backend server:", err);
   }
-} catch (err) {
-  console.error("❌ Failed to initialize Firebase on backend server:", err);
+} else {
+  console.log("📁 Server successfully swapped to 100% Free-Tier Private Local Persistent Server-Side Database and Disk Storage mode.");
 }
 
 // Global cached config getter/setter with high-availability cloud backing & local disk fallback
 async function getConfig(key: string, defaultVal: any) {
-  const localPath = path.join(process.cwd(), "src", "data", `${key}_db.json`);
+  const localPath = path.join(process.cwd(), "data", `${key}_db.json`);
   
   if (firestoreDb) {
     try {
@@ -74,7 +84,7 @@ async function getConfig(key: string, defaultVal: any) {
 
 async function saveConfig(key: string, value: any) {
   // 1. Save to local disk first as a reliable backup
-  const localPath = path.join(process.cwd(), "src", "data", `${key}_db.json`);
+  const localPath = path.join(process.cwd(), "data", `${key}_db.json`);
   const dirPath = path.dirname(localPath);
   try {
     if (!fs.existsSync(dirPath)) {
@@ -418,7 +428,7 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
       
       // If password was sent as mask, read it from existing config instead
       if (smtpPass === "••••••••••••") {
-        const configPath = path.join(process.cwd(), "src", "data", "email_config.json");
+        const configPath = path.join(process.cwd(), "data", "email_config_db.json");
         if (fs.existsSync(configPath)) {
           try {
             const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));

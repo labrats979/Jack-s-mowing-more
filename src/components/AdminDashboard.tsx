@@ -342,6 +342,42 @@ export default function AdminDashboard({
     afterImg: false
   });
 
+  // Local state buffers for Logo Config & Contact coordinates
+  const [localContact, setLocalContact] = useState(() => {
+    return contactInfo || {
+      phone: "+1 (732) 790-9789",
+      phoneRaw: "1-732-790-9789",
+      email: "estimates@jacksmowing.com",
+      location: "Milltown, NJ",
+      description: "Architectural landscape design, precision lawn mowing, lawn recovery, and custom stonemasonry. Serving Milltown with pride and premium cleanup."
+    };
+  });
+  const [contactSaveStatus, setContactSaveStatus] = useState('');
+
+  const [localLogo, setLocalLogo] = useState(() => {
+    return logoConfig || {
+      logoType: 'svg' as const,
+      imageUrl: '',
+      svgTextTop: "Jack's",
+      svgTextBottom: "Mowing & More",
+      svgColor: '#dc2626'
+    };
+  });
+  const [logoSaveStatus, setLogoSaveStatus] = useState('');
+
+  // Keep local states in sync when props receive loaded DB config
+  useEffect(() => {
+    if (contactInfo) {
+      setLocalContact(contactInfo);
+    }
+  }, [contactInfo]);
+
+  useEffect(() => {
+    if (logoConfig) {
+      setLocalLogo(logoConfig);
+    }
+  }, [logoConfig]);
+
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
@@ -350,12 +386,10 @@ export default function AdminDashboard({
     
     // Instantly generate and assign a local device object URL for immediate high-performance view
     const localUrl = URL.createObjectURL(file);
-    if (onSaveLogoConfig && logoConfig) {
-      onSaveLogoConfig({
-        ...logoConfig,
-        imageUrl: localUrl
-      });
-    }
+    setLocalLogo(prev => ({
+      ...prev,
+      imageUrl: localUrl
+    }));
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -391,12 +425,11 @@ export default function AdminDashboard({
             const uniqueName = `branding/logo_${Date.now()}_${Math.floor(Math.random() * 1000)}.png`;
             uploadImageWithFallback(compressedDataUrl, file.name, uniqueName)
               .then(imageUrl => {
-                if (onSaveLogoConfig && logoConfig) {
-                  onSaveLogoConfig({
-                    ...logoConfig,
-                    imageUrl
-                  });
-                }
+                setLocalLogo(prev => ({
+                  ...prev,
+                  imageUrl
+                }));
+                setLogoSaveStatus("Logo uploaded as draft. Save to publish.");
               })
               .finally(() => {
                 setIsUploadingLogo(false);
@@ -1804,13 +1837,17 @@ export default function AdminDashboard({
                                 type="button"
                                 onClick={() => {
                                   if (window.confirm("Reset your logo layout back to Jack's premium default SVG design?")) {
-                                    onSaveLogoConfig({
-                                      logoType: 'svg',
+                                    const fallback = {
+                                      logoType: 'svg' as const,
                                       imageUrl: '',
                                       svgTextTop: "Jack's",
                                       svgTextBottom: "Mowing & More",
                                       svgColor: '#dc2626'
-                                    });
+                                    };
+                                    setLocalLogo(fallback);
+                                    onSaveLogoConfig(fallback);
+                                    setLogoSaveStatus("Restored default brand settings successfully!");
+                                    setTimeout(() => setLogoSaveStatus(''), 4005);
                                   }
                                 }}
                                 className="px-2.5 py-1.5 bg-stone-100 text-stone-605 border border-stone-250 hover:bg-stone-200 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer shadow-3xs"
@@ -1830,13 +1867,9 @@ export default function AdminDashboard({
                                 <div className="flex gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      if (onSaveLogoConfig && logoConfig) {
-                                        onSaveLogoConfig({ ...logoConfig, logoType: 'svg' });
-                                      }
-                                    }}
+                                    onClick={() => setLocalLogo(prev => ({ ...prev, logoType: 'svg' }))}
                                     className={`flex-1 py-2 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition-all cursor-pointer border ${
-                                      (logoConfig?.logoType || 'svg') === 'svg'
+                                      (localLogo.logoType || 'svg') === 'svg'
                                         ? 'bg-stone-900 border-stone-900 text-white shadow-3xs'
                                         : 'bg-white border-stone-250 text-stone-600 hover:bg-stone-50'
                                     }`}
@@ -1845,13 +1878,9 @@ export default function AdminDashboard({
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      if (onSaveLogoConfig && logoConfig) {
-                                        onSaveLogoConfig({ ...logoConfig, logoType: 'image' });
-                                      }
-                                    }}
+                                    onClick={() => setLocalLogo(prev => ({ ...prev, logoType: 'image' }))}
                                     className={`flex-1 py-2 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition-all cursor-pointer border ${
-                                      logoConfig?.logoType === 'image'
+                                      localLogo.logoType === 'image'
                                         ? 'bg-stone-900 border-stone-900 text-white shadow-3xs'
                                         : 'bg-white border-stone-250 text-stone-600 hover:bg-stone-50'
                                     }`}
@@ -1862,7 +1891,7 @@ export default function AdminDashboard({
                               </div>
 
                               {/* CONDITIONAL CONTROLS: SVG REMODELER */}
-                              {(logoConfig?.logoType || 'svg') === 'svg' && (
+                              {(localLogo.logoType || 'svg') === 'svg' && (
                                 <div className="space-y-4 p-4.5 bg-white border border-stone-200 rounded-xl shadow-3xs animate-fade-in">
                                   <span className="text-[9px] font-mono bg-emerald-50 text-emerald-805 px-2 py-0.5 border border-emerald-150 rounded uppercase font-bold tracking-wider block w-max mb-1">
                                     Vector Customizer Fields
@@ -1873,12 +1902,8 @@ export default function AdminDashboard({
                                       <label className="text-[10px] font-mono text-stone-600 block uppercase font-semibold">Brand Moniker (Top)</label>
                                       <input
                                         type="text"
-                                        value={logoConfig?.svgTextTop || "Jack's"}
-                                        onChange={(e) => {
-                                          if (onSaveLogoConfig && logoConfig) {
-                                            onSaveLogoConfig({ ...logoConfig, svgTextTop: e.target.value });
-                                          }
-                                        }}
+                                        value={localLogo.svgTextTop || "Jack's"}
+                                        onChange={(e) => setLocalLogo(prev => ({ ...prev, svgTextTop: e.target.value }))}
                                         className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
                                         placeholder="e.g. Jack's"
                                       />
@@ -1888,12 +1913,8 @@ export default function AdminDashboard({
                                       <label className="text-[10px] font-mono text-stone-600 block uppercase font-semibold">Specialty Tagline (Bottom)</label>
                                       <input
                                         type="text"
-                                        value={logoConfig?.svgTextBottom || "Mowing & More"}
-                                        onChange={(e) => {
-                                          if (onSaveLogoConfig && logoConfig) {
-                                            onSaveLogoConfig({ ...logoConfig, svgTextBottom: e.target.value });
-                                          }
-                                        }}
+                                        value={localLogo.svgTextBottom || "Mowing & More"}
+                                        onChange={(e) => setLocalLogo(prev => ({ ...prev, svgTextBottom: e.target.value }))}
                                         className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
                                         placeholder="e.g. Mowing & More"
                                       />
@@ -1905,23 +1926,15 @@ export default function AdminDashboard({
                                     <div className="flex items-center gap-3">
                                       <input
                                         type="color"
-                                        value={logoConfig?.svgColor || "#dc2626"}
-                                        onChange={(e) => {
-                                          if (onSaveLogoConfig && logoConfig) {
-                                            onSaveLogoConfig({ ...logoConfig, svgColor: e.target.value });
-                                          }
-                                        }}
+                                        value={localLogo.svgColor || "#dc2626"}
+                                        onChange={(e) => setLocalLogo(prev => ({ ...prev, svgColor: e.target.value }))}
                                         className="w-10 h-10 border border-stone-300 rounded cursor-pointer p-0.5 bg-white shrink-0"
                                       />
                                       <div className="space-y-0.5 text-left">
                                         <input
                                           type="text"
-                                          value={logoConfig?.svgColor || "#dc2626"}
-                                          onChange={(e) => {
-                                            if (onSaveLogoConfig && logoConfig) {
-                                              onSaveLogoConfig({ ...logoConfig, svgColor: e.target.value });
-                                            }
-                                          }}
+                                          value={localLogo.svgColor || "#dc2626"}
+                                          onChange={(e) => setLocalLogo(prev => ({ ...prev, svgColor: e.target.value }))}
                                           className="px-2 py-1 bg-white border border-stone-300 rounded text-stone-800 font-mono text-[11px] focus:outline-none focus:border-emerald-650 w-24"
                                         />
                                         <span className="text-[9px] text-stone-400 block">Click square color picker or enter HEX</span>
@@ -1932,7 +1945,7 @@ export default function AdminDashboard({
                               )}
 
                               {/* CONDITIONAL CONTROLS: FILE ATTACHED UPLOADER */}
-                              {logoConfig?.logoType === 'image' && (
+                              {localLogo.logoType === 'image' && (
                                 <div className="space-y-4 p-4.5 bg-white border border-stone-200 rounded-xl shadow-3xs animate-fade-in">
                                   <span className="text-[9px] font-mono bg-blue-50 text-blue-805 px-2 py-0.5 border border-blue-150 rounded uppercase font-bold tracking-wider block w-max mb-1">
                                     Brand Graphic File
@@ -1940,12 +1953,8 @@ export default function AdminDashboard({
 
                                   <ImageUploadSelector
                                     label="Upload Brand Logo File"
-                                    value={logoConfig?.imageUrl || ''}
-                                    onChange={(val) => {
-                                      if (onSaveLogoConfig && logoConfig) {
-                                        onSaveLogoConfig({ ...logoConfig, imageUrl: val });
-                                      }
-                                    }}
+                                    value={localLogo.imageUrl || ''}
+                                    onChange={(val) => setLocalLogo(prev => ({ ...prev, imageUrl: val }))}
                                     onFileChange={handleUploadLogoFile}
                                     placeholder="Click to browse your hard drive, drag a PNG/JPG, or paste a URL"
                                     isUploading={isUploadingLogo}
@@ -1967,23 +1976,43 @@ export default function AdminDashboard({
                                 <div className="p-4 bg-stone-50 border border-dashed border-stone-250 rounded-xl flex items-center justify-center w-36 h-36 mt-4">
                                   <JacksLogo 
                                     size={96}
-                                    logoType={logoConfig?.logoType || 'svg'}
-                                    imageUrl={logoConfig?.imageUrl}
-                                    svgTextTop={logoConfig?.svgTextTop}
-                                    svgTextBottom={logoConfig?.svgTextBottom}
-                                    svgColor={logoConfig?.svgColor}
+                                    logoType={localLogo.logoType || 'svg'}
+                                    imageUrl={localLogo.imageUrl}
+                                    svgTextTop={localLogo.svgTextTop}
+                                    svgTextBottom={localLogo.svgTextBottom}
+                                    svgColor={localLogo.svgColor}
                                   />
                                 </div>
 
                                 <div className="mt-4 text-center">
                                   <h6 className="font-serif font-black text-stone-950 text-base leading-none">
-                                    {logoConfig?.svgTextTop || "Jack's"}
+                                    {localLogo.svgTextTop || "Jack's"}
                                   </h6>
                                   <span className="text-[10px] font-mono text-emerald-700 uppercase font-semibold tracking-widest mt-1 block">
-                                    {logoConfig?.svgTextBottom || "Mowing & More"}
+                                    {localLogo.svgTextBottom || "Mowing & More"}
                                   </span>
                                 </div>
                               </div>
+                            </div>
+
+                            {/* Action Row */}
+                            <div className="md:col-span-12 pt-4 border-t border-stone-200/60 flex items-center justify-between gap-4">
+                              <span className="text-[11px] font-mono text-emerald-705 font-bold animate-fade-in">
+                                {logoSaveStatus}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (onSaveLogoConfig) {
+                                    onSaveLogoConfig(localLogo);
+                                    setLogoSaveStatus("Brand identity saved successfully!");
+                                    setTimeout(() => setLogoSaveStatus(''), 4000);
+                                  }
+                                }}
+                                className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 border border-emerald-700 text-white rounded-xl text-xs font-mono font-bold transition-all uppercase tracking-wider cursor-pointer shadow-xs"
+                              >
+                                Save Brand Settings
+                              </button>
                             </div>
 
                           </div>
@@ -2034,8 +2063,8 @@ export default function AdminDashboard({
                                       </label>
                                       <input
                                         type="text"
-                                        value={contactInfo.phone || ''}
-                                        onChange={(e) => onSaveContactInfo({ ...contactInfo, phone: e.target.value })}
+                                        value={localContact.phone || ''}
+                                        onChange={(e) => setLocalContact({ ...localContact, phone: e.target.value })}
                                         className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
                                         placeholder="e.g. +1 (732) 790-9789"
                                       />
@@ -2047,8 +2076,8 @@ export default function AdminDashboard({
                                       </label>
                                       <input
                                         type="text"
-                                        value={contactInfo.phoneRaw || ''}
-                                        onChange={(e) => onSaveContactInfo({ ...contactInfo, phoneRaw: e.target.value })}
+                                        value={localContact.phoneRaw || ''}
+                                        onChange={(e) => setLocalContact({ ...localContact, phoneRaw: e.target.value })}
                                         className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
                                         placeholder="e.g. 1-732-790-9789"
                                       />
@@ -2062,8 +2091,8 @@ export default function AdminDashboard({
                                       </label>
                                       <input
                                         type="email"
-                                        value={contactInfo.email || ''}
-                                        onChange={(e) => onSaveContactInfo({ ...contactInfo, email: e.target.value })}
+                                        value={localContact.email || ''}
+                                        onChange={(e) => setLocalContact({ ...localContact, email: e.target.value })}
                                         className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
                                         placeholder="e.g. estimates@jacksmowing.com"
                                       />
@@ -2075,8 +2104,8 @@ export default function AdminDashboard({
                                       </label>
                                       <input
                                         type="text"
-                                        value={contactInfo.location || ''}
-                                        onChange={(e) => onSaveContactInfo({ ...contactInfo, location: e.target.value })}
+                                        value={localContact.location || ''}
+                                        onChange={(e) => setLocalContact({ ...localContact, location: e.target.value })}
                                         className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
                                         placeholder="e.g. Milltown, NJ"
                                       />
@@ -2089,8 +2118,8 @@ export default function AdminDashboard({
                                     </label>
                                     <textarea
                                       rows={2}
-                                      value={contactInfo.description || ''}
-                                      onChange={(e) => onSaveContactInfo({ ...contactInfo, description: e.target.value })}
+                                      value={localContact.description || ''}
+                                      onChange={(e) => setLocalContact({ ...localContact, description: e.target.value })}
                                       className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs resize-none"
                                       placeholder="Explain your specialties and territory area here..."
                                     />
@@ -2103,7 +2132,7 @@ export default function AdminDashboard({
 
                             {/* Live high-fidelity address preview card */}
                             <div className="md:col-span-5 h-full flex flex-col">
-                              {contactInfo ? (
+                              {localContact ? (
                                 <div className="bg-white border border-stone-200 rounded-xl p-6 flex flex-col justify-center min-h-[220px] shadow-3xs flex-1 relative overflow-hidden text-left bg-stone-50/50">
                                   <div className="absolute top-3 left-3">
                                     <span className="text-[8px] font-mono bg-stone-900 text-stone-200 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider flex items-center gap-1">
@@ -2115,8 +2144,8 @@ export default function AdminDashboard({
                                   <div className="space-y-4 pt-4 text-stone-800">
                                     <div>
                                       <h6 className="font-display font-semibold text-stone-650 text-[10px] uppercase tracking-wider">Company Bio column</h6>
-                                      <p className="text-stone-500 text-[11px] leading-relaxed mt-1 font-light italic">
-                                        "{contactInfo.description}"
+                                      <p className="text-stone-550 text-[11px] leading-relaxed mt-1 font-light italic">
+                                        "{localContact.description}"
                                       </p>
                                     </div>
 
@@ -2125,15 +2154,15 @@ export default function AdminDashboard({
                                       <div className="space-y-1.5 mt-1.5 text-[11px] text-stone-605">
                                         <div className="flex items-center gap-2">
                                           <Phone className="w-3.5 h-3.5 text-stone-405 shrink-0" />
-                                          <span className="font-medium text-stone-750">{contactInfo.phone}</span>
+                                          <span className="font-medium text-stone-750">{localContact.phone}</span>
                                         </div>
                                         <div className="flex items-center gap-2">
                                           <Mail className="w-3.5 h-3.5 text-stone-405 shrink-0" />
-                                          <span className="hover:underline text-emerald-700">{contactInfo.email}</span>
+                                          <span className="hover:underline text-emerald-700">{localContact.email}</span>
                                         </div>
                                         <div className="flex items-center gap-2">
                                           <MapPin className="w-3.5 h-3.5 text-stone-405 shrink-0" />
-                                          <span>{contactInfo.location}</span>
+                                          <span>{localContact.location}</span>
                                         </div>
                                       </div>
                                     </div>
@@ -2145,6 +2174,27 @@ export default function AdminDashboard({
                                 </div>
                               )}
                             </div>
+
+                            {/* Action Row */}
+                            <div className="md:col-span-12 pt-4 border-t border-stone-200/60 flex items-center justify-between gap-4">
+                              <span className="text-[11px] font-mono text-emerald-705 font-bold animate-fade-in">
+                                {contactSaveStatus}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (onSaveContactInfo) {
+                                    onSaveContactInfo(localContact);
+                                    setContactSaveStatus("Contact details saved successfully!");
+                                    setTimeout(() => setContactSaveStatus(''), 4000);
+                                  }
+                                }}
+                                className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 border border-emerald-700 text-white rounded-xl text-xs font-mono font-bold transition-all uppercase tracking-wider cursor-pointer shadow-xs"
+                              >
+                                Save Contact Details
+                              </button>
+                            </div>
+
                           </div>
                         </div>
 
