@@ -621,8 +621,7 @@ export default function AdminDashboard({
 
     // Instantly generate and assign local object URL for zero-latency slider updates
     const localUrl = URL.createObjectURL(file);
-    const updatedWithLocal = { ...sliderConfig, [field]: localUrl };
-    setSliderConfig(updatedWithLocal);
+    setSliderConfig(prev => ({ ...prev, [field]: localUrl }));
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -658,9 +657,11 @@ export default function AdminDashboard({
             const uniqueName = `slider/slider_${field}_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`;
             uploadImageWithFallback(compressedDataUrl, file.name, uniqueName)
               .then(imageUrl => {
-                const updated = { ...sliderConfig, [field]: imageUrl };
-                setSliderConfig(updated);
-                saveSliderConfigToServer(updated);
+                setSliderConfig(prev => {
+                  const updated = { ...prev, [field]: imageUrl };
+                  saveSliderConfigToServer(updated);
+                  return updated;
+                });
               })
               .finally(() => {
                 if (field === 'beforeImg') setIsUploadingSliderBefore(false);
@@ -691,6 +692,10 @@ export default function AdminDashboard({
   };
 
   const saveSliderConfigToServer = (updated: typeof sliderConfig) => {
+    if (updated.beforeImg?.startsWith('blob:') || updated.afterImg?.startsWith('blob:')) {
+      console.log('Skipping backend persist for temporary slider blob URL');
+      return;
+    }
     fetch('/api/portfolio-slider', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -708,8 +713,7 @@ export default function AdminDashboard({
 
     // Instantly generate and assign local object URL for zero-latency card previews
     const localUrl = URL.createObjectURL(file);
-    const updatedWithLocal = { ...serviceCardImages, [serviceId]: localUrl };
-    setServiceCardImages(updatedWithLocal);
+    setServiceCardImages(prev => ({ ...prev, [serviceId]: localUrl }));
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -771,19 +775,24 @@ export default function AdminDashboard({
   };
 
   const saveServiceCardImageToServer = (serviceId: string, url: string) => {
-    const updated = { ...serviceCardImages, [serviceId]: url };
-    setServiceCardImages(updated);
+    setServiceCardImages(prev => {
+      const updated = { ...prev, [serviceId]: url };
 
-    fetch('/api/service-card-images', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    })
-    .then(res => {
-      if (!res.ok) throw new Error('Failed to save service card image');
-      return res.json();
-    })
-    .catch(err => console.error('Save service card image failed:', err));
+      if (url && !url.startsWith('blob:')) {
+        fetch('/api/service-card-images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated)
+        })
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to save service card image');
+          return res.json();
+        })
+        .catch(err => console.error('Save service card image failed:', err));
+      }
+
+      return updated;
+    });
   };
 
   // Load email configuration from the server
@@ -1118,6 +1127,11 @@ export default function AdminDashboard({
   const handleSaveVisualsForm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingVisualsId) return;
+
+    if (visualsForm.beforeImg?.startsWith('blob:') || visualsForm.afterImg?.startsWith('blob:')) {
+      alert("Please wait: your photo is still uploading to our secure servers! Once the progress bar/spinner disappears, click 'Confirm & Save Photos' again.");
+      return;
+    }
 
     const nextVisuals = {
       ...customVisuals,
@@ -2003,6 +2017,10 @@ export default function AdminDashboard({
                               <button
                                 type="button"
                                 onClick={() => {
+                                  if (localLogo.imageUrl?.startsWith('blob:')) {
+                                    alert("Please wait: your logo is still uploading to our secure servers! Once the progress bar stops, click 'Save Brand Settings' again.");
+                                    return;
+                                  }
                                   if (onSaveLogoConfig) {
                                     onSaveLogoConfig(localLogo);
                                     setLogoSaveStatus("Brand identity saved successfully!");
@@ -2220,9 +2238,11 @@ export default function AdminDashboard({
                                 label="Before View Image"
                                 value={sliderConfig.beforeImg}
                                 onChange={(val) => {
-                                  const updated = { ...sliderConfig, beforeImg: val };
-                                  setSliderConfig(updated);
-                                  saveSliderConfigToServer(updated);
+                                  setSliderConfig(prev => {
+                                    const updated = { ...prev, beforeImg: val };
+                                    saveSliderConfigToServer(updated);
+                                    return updated;
+                                  });
                                 }}
                                 onFileChange={(file) => handleUploadSliderFile(file, 'beforeImg')}
                                 placeholder="Upload or URL for Before image"
@@ -2234,9 +2254,12 @@ export default function AdminDashboard({
                                   type="text"
                                   value={sliderConfig.beforeLabel}
                                   onChange={(e) => {
-                                    const updated = { ...sliderConfig, beforeLabel: e.target.value };
-                                    setSliderConfig(updated);
-                                    saveSliderConfigToServer(updated);
+                                    const val = e.target.value;
+                                    setSliderConfig(prev => {
+                                      const updated = { ...prev, beforeLabel: val };
+                                      saveSliderConfigToServer(updated);
+                                      return updated;
+                                    });
                                   }}
                                   placeholder="e.g. Dry Weedy Clay Lot (Before)"
                                   className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"
@@ -2253,9 +2276,11 @@ export default function AdminDashboard({
                                 label="After View Image"
                                 value={sliderConfig.afterImg}
                                 onChange={(val) => {
-                                  const updated = { ...sliderConfig, afterImg: val };
-                                  setSliderConfig(updated);
-                                  saveSliderConfigToServer(updated);
+                                  setSliderConfig(prev => {
+                                    const updated = { ...prev, afterImg: val };
+                                    saveSliderConfigToServer(updated);
+                                    return updated;
+                                  });
                                 }}
                                 onFileChange={(file) => handleUploadSliderFile(file, 'afterImg')}
                                 placeholder="Upload or URL for After image"
@@ -2267,9 +2292,12 @@ export default function AdminDashboard({
                                   type="text"
                                   value={sliderConfig.afterLabel}
                                   onChange={(e) => {
-                                    const updated = { ...sliderConfig, afterLabel: e.target.value };
-                                    setSliderConfig(updated);
-                                    saveSliderConfigToServer(updated);
+                                    const val = e.target.value;
+                                    setSliderConfig(prev => {
+                                      const updated = { ...prev, afterLabel: val };
+                                      saveSliderConfigToServer(updated);
+                                      return updated;
+                                    });
                                   }}
                                   placeholder="e.g. Lined Botanical Walkway (After)"
                                   className="w-full px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-900 font-light text-xs focus:outline-none focus:border-emerald-650 shadow-3xs"

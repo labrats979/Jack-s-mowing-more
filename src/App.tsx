@@ -81,20 +81,24 @@ export default function App() {
   // Save brand logo configuration helper
   const handleSaveLogoConfig = (newConfig: typeof logoConfig) => {
     setLogoConfig(newConfig);
-    localStorage.setItem('jacks_logo_config', JSON.stringify(newConfig));
 
-    fetch('/api/brand-logo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newConfig)
-    })
-    .then(res => {
-      if (!res.ok) throw new Error('Logo config save failed');
-      return res.json();
-    })
-    .catch(err => {
-      console.error('Server persistent logo config save failed:', err);
-    });
+    // Only persist if it does not contain a temporary webkit/local blob URL
+    if (!newConfig.imageUrl || !newConfig.imageUrl.startsWith('blob:')) {
+      localStorage.setItem('jacks_logo_config', JSON.stringify(newConfig));
+
+      fetch('/api/brand-logo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newConfig)
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Logo config save failed');
+        return res.json();
+      })
+      .catch(err => {
+        console.error('Server persistent logo config save failed:', err);
+      });
+    }
   };
 
   // Contact info dynamic customize state
@@ -159,21 +163,25 @@ export default function App() {
   // Handle saving the cover photo to both client state/localStorage and backend database
   const handleSaveCoverPhoto = (url: string) => {
     setCoverPhoto(url);
-    localStorage.setItem('jacks_cover_photo', url);
 
-    // Save to the server-side persistent database
-    fetch('/api/cover-photo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ coverPhoto: url })
-    })
-    .then(res => {
-      if (!res.ok) throw new Error('Cover photo save failed');
-      return res.json();
-    })
-    .catch(err => {
-      console.error('Server persistent cover photo save failed:', err);
-    });
+    // Only persist if it's a real, resolved/remote image URL (not a local browser blob pointer)
+    if (url && !url.startsWith('blob:')) {
+      localStorage.setItem('jacks_cover_photo', url);
+
+      // Save to the server-side persistent database
+      fetch('/api/cover-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coverPhoto: url })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Cover photo save failed');
+        return res.json();
+      })
+      .catch(err => {
+        console.error('Server persistent cover photo save failed:', err);
+      });
+    }
   };
 
   // Load initial services from local storage or defaults, with dynamic Firestore sync

@@ -21,7 +21,7 @@ const __dirname = path.dirname(__filename);
 // server-side file-system database and local disk storage. This replaces external shared cloud sync
 // (Firebase Firestore & Firebase Storage), ensuring your uploaded photos and configurations stay completely
 // private to your own server domain, with absolutely zero external subscription costs or query limits.
-const FORCE_LOCAL_FREE_TIER_BACKEND = true;
+const FORCE_LOCAL_FREE_TIER_BACKEND = false;
 
 let firebaseApp: any = null;
 let firestoreDb: any = null;
