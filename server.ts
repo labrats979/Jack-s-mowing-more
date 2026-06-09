@@ -36,22 +36,26 @@ if (!FORCE_LOCAL_FREE_TIER_BACKEND) {
     if (fs.existsSync(configPath)) {
       firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
       firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-      firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+      
+      // Initialize Admin SDK with service/ambient credentials
+      if (admin.apps.length === 0) {
+        admin.initializeApp({
+          projectId: firebaseConfig.projectId,
+          storageBucket: firebaseConfig.storageBucket,
+        });
+      }
+
+      // Initialize admin Firestore - bypasses rules and connects with complete server authority
+      firestoreDb = admin.firestore(firebaseConfig.firestoreDatabaseId);
+      console.log(`🔥 Connected to Firebase Admin Firestore database instance: ${firebaseConfig.firestoreDatabaseId}`);
+
       if (firebaseConfig.storageBucket) {
         storageBucket = getStorage(firebaseApp);
         console.log(`🔥 Connected to Firebase Storage bucket: ${firebaseConfig.storageBucket}`);
-
-        // Initialize Admin SDK with service/ambient credentials
-        if (admin.apps.length === 0) {
-          admin.initializeApp({
-            projectId: firebaseConfig.projectId,
-            storageBucket: firebaseConfig.storageBucket,
-          });
-        }
         adminBucket = admin.storage().bucket(firebaseConfig.storageBucket);
         console.log(`🔥 Firebase Admin SDK initialized! Connected to Admin bucket: ${firebaseConfig.storageBucket}`);
       }
-      console.log("🔥 Firebase Client Web SDK initialized successfully on backend server for global real-time synchronization!");
+      console.log("🔥 Firebase Admin & Client SDKs successfully initialized on backend server!");
     } else {
       console.warn("⚠️ firebase-applet-config.json not found. Fallback to local files only.");
     }
@@ -68,9 +72,9 @@ async function getConfig(key: string, defaultVal: any) {
   
   if (firestoreDb) {
     try {
-      const docRef = doc(firestoreDb, "site_configs", key);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
+      const docRef = firestoreDb.collection("site_configs").doc(key);
+      const docSnap = await docRef.get();
+      if (docSnap.exists) {
         const snapData = docSnap.data();
         if (snapData && snapData.hasOwnProperty("data")) {
           return snapData.data;
@@ -78,7 +82,7 @@ async function getConfig(key: string, defaultVal: any) {
         return snapData;
       }
     } catch (err: any) {
-      console.warn(`Firestore fallback warning: Error reading ${key} from Firestore, using local file backup instead. Details:`, err.message || err);
+      console.warn(`Firestore Admin fallback warning: Error reading ${key} from Firestore, using local file backup instead. Details:`, err.message || err);
     }
   }
 
@@ -107,13 +111,13 @@ async function saveConfig(key: string, value: any) {
     console.error(`Error writing local backup file for ${key}:`, err);
   }
 
-  // 2. Sync directly to Firestore for high-availability multi-instance mirroring
+  // 2. Sync directly to Firestore for high-availability multi-instance mirroring using Admin SDK
   if (firestoreDb) {
     try {
-      const docRef = doc(firestoreDb, "site_configs", key);
+      const docRef = firestoreDb.collection("site_configs").doc(key);
       const payload = Array.isArray(value) ? { data: value } : value;
-      await setDoc(docRef, payload);
-      console.log(`📡 Successfully pushed changes for ${key} to public Firestore db.`);
+      await docRef.set(payload);
+      console.log(`📡 Successfully synced changes for '${key}' to Firebase Firestore using Admin SDK.`);
     } catch (err: any) {
       console.warn(`Firestore sync transient warning: Error syncing ${key} to Firestore. Will continue using local filesystem backing. Details:`, err.message || err);
     }
