@@ -163,18 +163,40 @@ function getMimeType(fileName: string): string {
 // Static directories mounting
 app.use("/src/assets/images", express.static(path.join(process.cwd(), "src", "assets", "images")));
 
-// Dynamic /uploads service handler to support read-only container fallbacks (Vercel /tmp)
-app.get("/uploads/:filename", (req, res) => {
-  const filename = req.params.filename;
-  const projectPath = path.join(process.cwd(), "uploads", filename);
-  if (fs.existsSync(projectPath)) {
-    return res.sendFile(projectPath);
+// Dynamic and fallback serving for uploaded images
+app.get("/uploads/:filename", async (req, res, next) => {
+  try {
+    const { filename } = req.params;
+
+    // 1. Check if the file exists on the local server disk (instant/high-speed lookup)
+    const localPath = path.join(process.cwd(), "uploads", filename);
+    if (fs.existsSync(localPath)) {
+      res.setHeader("Content-Type", getMimeType(filename));
+      return res.sendFile(localPath);
+    }
+
+    // 2. Locate backup within our persistent Firestore database or memory cache
+    const storeKey = "upload_" + filename.replace(/\./g, "_");
+    const uploadData = await getConfig(storeKey, null);
+
+    if (uploadData && uploadData.base64) {
+      let base64Body = uploadData.base64;
+      const matches = base64Body.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        base64Body = matches[2];
+      }
+      const buffer = Buffer.from(base64Body, 'base64');
+      res.setHeader("Content-Type", uploadData.mimeType || getMimeType(filename));
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      return res.end(buffer);
+    }
+
+    // Default static server fallback
+    return res.status(404).send("File not found");
+  } catch (error) {
+    console.error("Error serving uploaded image:", error);
+    next(error);
   }
-  const tmpPath = path.join("/tmp", "uploads", filename);
-  if (fs.existsSync(tmpPath)) {
-    return res.sendFile(tmpPath);
-  }
-  res.status(404).send("File not found");
 });
 
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
@@ -970,20 +992,20 @@ app.post("/api/upload-image", async (req, res) => {
       const destPath = path.join(uploadsDir, safeFileName);
       fs.writeFileSync(destPath, buffer);
     } catch (diskErr) {
-      console.warn("⚠️ Local disk write bypassed (or failed due to read-only container filesystem under process.cwd()):", diskErr);
+      console.warn("⚠️ Local desk write bypassed (or failed due to read-only target container filesystem):", diskErr);
     }
 
-    // Try secondary write to /tmp/uploads for serverless environments like Vercel
-    const tmpUploadsDir = path.join("/tmp", "uploads");
+    // Save base64 directly to Firestore backup under "site_configs" with key "upload_uploaded_..."
+    const storeKey = "upload_" + safeFileName.replace(/\./g, "_");
     try {
-      if (!fs.existsSync(tmpUploadsDir)) {
-        fs.mkdirSync(tmpUploadsDir, { recursive: true });
-      }
-      const tmpDestPath = path.join(tmpUploadsDir, safeFileName);
-      fs.writeFileSync(tmpDestPath, buffer);
-      console.log(`✅ File synchronized to writeable tmp disk at: ${tmpDestPath}`);
-    } catch (tmpErr) {
-      console.warn("⚠️ Local disk write bypassed under /tmp directory:", tmpErr);
+      await saveConfig(storeKey, {
+        base64: base64,
+        mimeType: mimeType,
+        fileName: safeFileName
+      });
+      console.log(`📡 Secure Firestore backup generated for upload: ${storeKey}`);
+    } catch (firestoreErr: any) {
+      console.warn("⚠️ Firestore-based backup image store failed:", firestoreErr.message || firestoreErr);
     }
 
     let imageUrl = `/uploads/${safeFileName}`;
@@ -992,7 +1014,7 @@ app.post("/api/upload-image", async (req, res) => {
     if (firebaseConfigData && firebaseConfigData.storageBucket && firebaseConfigData.apiKey) {
       const bucket = firebaseConfigData.storageBucket;
       const targetMime = mimeType || getMimeType(fileName);
-      const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?uploadType=media&name=${encodeURIComponent(`uploads/${safeFileName}`)}&key=${firebaseConfigData.apiKey}`;
+      const uploadUrl = `https://firebasestorage.googleapis.com/v1/b/${bucket}/o?uploadType=media&name=${encodeURIComponent(`uploads/${safeFileName}`)}`;
       
       try {
         const uploadPromise = (async () => {
@@ -1005,25 +1027,6 @@ app.post("/api/upload-image", async (req, res) => {
           });
           
           if (resp.ok) {
-            // Update custom metadata to include the download token, otherwise the url returning the token gets 403 Forbidden
-            const patchUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(`uploads/${safeFileName}`)}?key=${firebaseConfigData.apiKey}`;
-            try {
-              await fetch(patchUrl, {
-                method: "PATCH",
-                headers: {
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                  metadata: {
-                    firebaseStorageDownloadTokens: safeSuffix
-                  }
-                })
-              });
-              console.log(`✅ Successfully patched firebaseStorageDownloadTokens metadata for: ${safeFileName}`);
-            } catch (pErr) {
-              console.warn("⚠️ Failed to set firebaseStorageDownloadTokens metadata, preview might fail:", pErr);
-            }
-
             return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(`uploads/${safeFileName}`)}?alt=media&token=${safeSuffix}`;
           } else {
             const txt = await resp.text();
