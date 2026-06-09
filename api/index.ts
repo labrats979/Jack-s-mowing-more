@@ -977,6 +977,25 @@ app.post("/api/upload-image", async (req, res) => {
           });
           
           if (resp.ok) {
+            // Update custom metadata to include the download token, otherwise the url returning the token gets 403 Forbidden
+            const patchUrl = `https://firebasestorage.googleapis.com/v1/b/${bucket}/o/${encodeURIComponent(`uploads/${safeFileName}`)}?key=${firebaseConfigData.apiKey}`;
+            try {
+              await fetch(patchUrl, {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                  metadata: {
+                    firebaseStorageDownloadTokens: safeSuffix
+                  }
+                })
+              });
+              console.log(`✅ Successfully patched firebaseStorageDownloadTokens metadata for: ${safeFileName}`);
+            } catch (pErr) {
+              console.warn("⚠️ Failed to set firebaseStorageDownloadTokens metadata, preview might fail:", pErr);
+            }
+
             return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(`uploads/${safeFileName}`)}?alt=media&token=${safeSuffix}`;
           } else {
             const txt = await resp.text();
