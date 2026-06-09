@@ -139,22 +139,12 @@ export default function ServiceDetailPage({
           if (data && typeof data === 'object' && Object.keys(data).length > 0) {
             setCustomVisuals(data);
           } else {
-            const saved = localStorage.getItem('jacks_service_visuals');
-            if (saved) {
-              setCustomVisuals(JSON.parse(saved));
-            } else {
-              setCustomVisuals({});
-            }
+            setCustomVisuals({});
           }
         })
         .catch(err => {
           console.error("API failed to load visuals:", err);
-          const saved = localStorage.getItem('jacks_service_visuals');
-          if (saved) {
-            setCustomVisuals(JSON.parse(saved));
-          } else {
-            setCustomVisuals({});
-          }
+          setCustomVisuals({});
         });
     };
     loadVisuals();

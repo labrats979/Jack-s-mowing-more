@@ -102,20 +102,7 @@ export default function BookingForm({
       status: 'new' // 'new' | 'contacted' | 'completed' | 'archived'
     };
 
-    // 1. Save lead to localStorage for immediate client-side feedback
-    try {
-      const existingLeadsStr = localStorage.getItem('jacks_booking_leads');
-      const existingLeads = existingLeadsStr ? JSON.parse(existingLeadsStr) : [];
-      const updatedLeads = [newLead, ...existingLeads];
-      localStorage.setItem('jacks_booking_leads', JSON.stringify(updatedLeads));
-      
-      // Also emit a storage event to alert open Admin components in the same window
-      window.dispatchEvent(new Event('storage'));
-    } catch (err) {
-      console.error('Failed to log booking lead locally', err);
-    }
-
-    // 2. POST to persistent server-side bookings API to sync and fire real email notification to Jacks email
+    // 1. POST to persistent server-side bookings API to sync and fire real email notification to Jacks email
     fetch('/api/bookings', {
       method: "POST",
       headers: {

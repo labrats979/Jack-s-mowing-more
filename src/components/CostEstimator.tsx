@@ -26,7 +26,7 @@ export default function CostEstimator({
   // Editable pricing model states
   const [showRateSettings, setShowRateSettings] = useState(false);
   const [rates, setRates] = useState(() => {
-    const defaultRates = {
+    return {
       smallMin: 25,
       smallMax: 35,
       smallBiweeklyMin: 32,
@@ -38,34 +38,11 @@ export default function CostEstimator({
       largeMin: 45,
       largeBiweeklyMin: 56,
     };
-    try {
-      const saved = localStorage.getItem('jacks_calculator_rates');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.smallMin === 20 || parsed.smallMin === 30 || !parsed.smallBiweeklyMin) {
-          localStorage.removeItem('jacks_calculator_rates');
-          return defaultRates;
-        }
-        return {
-          ...defaultRates,
-          ...parsed
-        };
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return defaultRates;
   });
 
   const handleUpdateRate = (key: string, value: number) => {
     setRates((prev: any) => {
-      const next = { ...prev, [key]: value };
-      try {
-        localStorage.setItem('jacks_calculator_rates', JSON.stringify(next));
-      } catch (e) {
-        console.error(e);
-      }
-      return next;
+      return { ...prev, [key]: value };
     });
   };
 

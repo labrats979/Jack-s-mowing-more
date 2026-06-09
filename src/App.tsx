@@ -16,9 +16,7 @@ import { Compass, Hammer, Flower, Sun, Droplets, ArrowRight, ShieldCheck, TreePi
 
 export default function App() {
   // Cover Photo customizable background state
-  const [coverPhoto, setCoverPhoto] = useState<string>(() => {
-    return localStorage.getItem('jacks_cover_photo') || '/src/assets/images/landscape_hero_1779327295782.png';
-  });
+  const [coverPhoto, setCoverPhoto] = useState<string>('/src/assets/images/landscape_hero_1779327295782.png');
 
   // Fetch the cover photo from the server database on mount
   useEffect(() => {
@@ -30,34 +28,20 @@ export default function App() {
       .then(data => {
         if (data.coverPhoto) {
           setCoverPhoto(data.coverPhoto);
-          localStorage.setItem('jacks_cover_photo', data.coverPhoto);
         }
       })
       .catch(err => {
-        console.warn('Could not fetch server-side cover photo, using localStorage:', err);
+        console.warn('Could not fetch server-side cover photo:', err);
       });
   }, []);
 
   // Brand Logo dynamic config state
-  const [logoConfig, setLogoConfig] = useState(() => {
-    try {
-      const saved = localStorage.getItem('jacks_logo_config');
-      return saved ? JSON.parse(saved) : {
-        logoType: 'svg',
-        imageUrl: '',
-        svgTextTop: "Jack's",
-        svgTextBottom: "Mowing & More",
-        svgColor: '#dc2626'
-      };
-    } catch (_) {
-      return {
-        logoType: 'svg',
-        imageUrl: '',
-        svgTextTop: "Jack's",
-        svgTextBottom: "Mowing & More",
-        svgColor: '#dc2626'
-      };
-    }
+  const [logoConfig, setLogoConfig] = useState({
+    logoType: 'svg',
+    imageUrl: '',
+    svgTextTop: "Jack's",
+    svgTextBottom: "Mowing & More",
+    svgColor: '#dc2626'
   });
 
   // Fetch the brand logo configuration from the server on mount
@@ -70,7 +54,6 @@ export default function App() {
       .then(data => {
         if (data && data.logoType) {
           setLogoConfig(data);
-          localStorage.setItem('jacks_logo_config', JSON.stringify(data));
         }
       })
       .catch(err => {
@@ -84,8 +67,6 @@ export default function App() {
 
     // Only persist if it does not contain a temporary webkit/local blob URL
     if (!newConfig.imageUrl || !newConfig.imageUrl.startsWith('blob:')) {
-      localStorage.setItem('jacks_logo_config', JSON.stringify(newConfig));
-
       fetch('/api/brand-logo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -102,25 +83,12 @@ export default function App() {
   };
 
   // Contact info dynamic customize state
-  const [contactInfo, setContactInfo] = useState(() => {
-    try {
-      const saved = localStorage.getItem('jacks_contact_info');
-      return saved ? JSON.parse(saved) : {
-        phone: "+1 (732) 790-9789",
-        phoneRaw: "1-732-790-9789",
-        email: "estimates@jacksmowing.com",
-        location: "Milltown, NJ",
-        description: "Architectural landscape design, precision lawn mowing, lawn recovery, and custom stonemasonry. Serving Milltown with pride and premium cleanup."
-      };
-    } catch (_) {
-      return {
-        phone: "+1 (732) 790-9789",
-        phoneRaw: "1-732-790-9789",
-        email: "estimates@jacksmowing.com",
-        location: "Milltown, NJ",
-        description: "Architectural landscape design, precision lawn mowing, lawn recovery, and custom stonemasonry. Serving Milltown with pride and premium cleanup."
-      };
-    }
+  const [contactInfo, setContactInfo] = useState({
+    phone: "+1 (732) 790-9789",
+    phoneRaw: "1-732-790-9789",
+    email: "estimates@jacksmowing.com",
+    location: "Milltown, NJ",
+    description: "Architectural landscape design, precision lawn mowing, lawn recovery, and custom stonemasonry. Serving Milltown with pride and premium cleanup."
   });
 
   // Fetch the custom contact information on mount
@@ -133,7 +101,6 @@ export default function App() {
       .then(data => {
         if (data && data.phone) {
           setContactInfo(data);
-          localStorage.setItem('jacks_contact_info', JSON.stringify(data));
         }
       })
       .catch(err => {
@@ -144,7 +111,6 @@ export default function App() {
   // Save customized contact information helper
   const handleSaveContactInfo = (newContact: typeof contactInfo) => {
     setContactInfo(newContact);
-    localStorage.setItem('jacks_contact_info', JSON.stringify(newContact));
 
     fetch('/api/contact-info', {
       method: 'POST',
@@ -160,14 +126,12 @@ export default function App() {
     });
   };
 
-  // Handle saving the cover photo to both client state/localStorage and backend database
+  // Handle saving the cover photo to both client state and backend database
   const handleSaveCoverPhoto = (url: string) => {
     setCoverPhoto(url);
 
     // Only persist if it's a real, resolved/remote image URL (not a local browser blob pointer)
     if (url && !url.startsWith('blob:')) {
-      localStorage.setItem('jacks_cover_photo', url);
-
       // Save to the server-side persistent database
       fetch('/api/cover-photo', {
         method: 'POST',
@@ -184,18 +148,8 @@ export default function App() {
     }
   };
 
-  // Load initial services from local storage or defaults, with dynamic Firestore sync
-  const [services, setServices] = useState<Service[]>(() => {
-    const saved = localStorage.getItem('jacks_mowing_services_v2');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (err) {
-        console.error('Failed to parse saved services, falling back to defaults', err);
-      }
-    }
-    return INITIAL_SERVICES;
-  });
+  // Load initial services
+  const [services, setServices] = useState<Service[]>(INITIAL_SERVICES);
 
   // Sync services from backend Firestore database on mount
   useEffect(() => {
@@ -207,11 +161,10 @@ export default function App() {
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
           setServices(data);
-          localStorage.setItem('jacks_mowing_services_v2', JSON.stringify(data));
         }
       })
       .catch(err => {
-        console.warn('Could not sync services with Firestore database, using local storage fallback:', err);
+        console.warn('Could not sync services with Firestore database:', err);
       });
   }, []);
 
@@ -275,7 +228,6 @@ export default function App() {
 
   const handleSaveServices = (updated: Service[]) => {
     setServices(updated);
-    localStorage.setItem('jacks_mowing_services_v2', JSON.stringify(updated));
 
     fetch('/api/services', {
       method: 'POST',
@@ -293,7 +245,6 @@ export default function App() {
 
   const handleRestoreDefaults = () => {
     setServices(INITIAL_SERVICES);
-    localStorage.setItem('jacks_mowing_services_v2', JSON.stringify(INITIAL_SERVICES));
 
     fetch('/api/services', {
       method: 'POST',

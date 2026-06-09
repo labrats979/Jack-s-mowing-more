@@ -810,74 +810,23 @@ export default function AdminDashboard({
       });
   };
 
-  // Load leads from LocalStorage and synchronise with the backend server
+  // Load leads and synchronise with the backend server
   const loadLeadsInput = () => {
     try {
-      const saved = localStorage.getItem('jacks_booking_leads');
-      let localLeads: Lead[] = [];
-      if (saved) {
-        localLeads = JSON.parse(saved);
-        setLeads(localLeads);
-      } else {
-        // Create 2 mock initial leads if empty so the dashboard has something beautiful to show!
-        localLeads = [
-          {
-            id: 'lead-1',
-            fullName: 'Sarah Jenkins',
-            email: 'sarah.j@example.com',
-            phone: '(503) 555-1294',
-            address: '412 Maple Terrace, Milltown',
-            timeframe: 'Next 1-2 Months',
-            notes: 'Looking to completely redesign my front yard garden beds with premium mulch, low-maintenance native plants, and custom stone edging.',
-            services: ['Landscape Design & Installation', 'Mulch Installation'],
-            createdAt: new Date(Date.now() - 3600000 * 4).toISOString(), // 4 hours ago
-            status: 'new'
-          },
-          {
-            id: 'lead-2',
-            fullName: 'Robert Miller',
-            email: 'bob.miller@example.com',
-            phone: '(503) 555-3810',
-            address: '891 Oak Lane, Milltown',
-            timeframe: 'Immediate (< 2 weeks)',
-            notes: 'Urgent weed removal and lawn restoration after the heavy storm. My backyard beds are taken over.',
-            services: ['Weed Removal', 'Lawn Restoration'],
-            createdAt: new Date(Date.now() - 3600000 * 25).toISOString(), // 25 hours ago
-            status: 'contacted'
-          }
-        ];
-        localStorage.setItem('jacks_booking_leads', JSON.stringify(localLeads));
-        setLeads(localLeads);
-      }
-
       // Query the server for ground truth
       fetch('/api/bookings')
         .then(res => res.json())
         .then(serverLeads => {
-          if (Array.isArray(serverLeads) && serverLeads.length > 0) {
-            // Merge both: we prioritize serverLeads as ground truth but include any unique local leads
-            const merged = [...serverLeads];
-            localLeads.forEach((localL) => {
-              const matched = merged.some(sl => sl.id === localL.id || (sl.fullName === localL.fullName && sl.createdAt === localL.createdAt));
-              if (!matched) {
-                merged.push(localL);
-              }
-            });
+          if (Array.isArray(serverLeads)) {
             // Sort by creation time
-            merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-            setLeads(merged);
-            localStorage.setItem('jacks_booking_leads', JSON.stringify(merged));
-          } else if (localLeads.length > 0) {
-            // Backup/Seed the server since it has 0 leads
-            fetch('/api/bookings/save-all', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ leads: localLeads })
-            }).catch(e => console.error(e));
+            const sorted = [...serverLeads].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            setLeads(sorted);
+          } else {
+            setLeads([]);
           }
         })
         .catch(err => {
-          console.error("Could not reach bookings API server, utilizing local state:", err);
+          console.error("Could not reach bookings API server:", err);
         });
     } catch (e) {
       console.error(e);
@@ -891,22 +840,12 @@ export default function AdminDashboard({
         if (data && typeof data === 'object' && Object.keys(data).length > 0) {
           setCustomVisuals(data);
         } else {
-          const saved = localStorage.getItem('jacks_service_visuals');
-          if (saved) {
-            setCustomVisuals(JSON.parse(saved));
-          } else {
-            setCustomVisuals({});
-          }
+          setCustomVisuals({});
         }
       })
       .catch(err => {
         console.error("API failed to load visuals inside admin:", err);
-        const saved = localStorage.getItem('jacks_service_visuals');
-        if (saved) {
-          setCustomVisuals(JSON.parse(saved));
-        } else {
-          setCustomVisuals({});
-        }
+        setCustomVisuals({});
       });
   };
 
@@ -996,7 +935,6 @@ export default function AdminDashboard({
       l.id === id ? { ...l, status: nextStatus } : l
     );
     setLeads(nextLeads);
-    localStorage.setItem('jacks_booking_leads', JSON.stringify(nextLeads));
 
     // Save persistently to server
     fetch('/api/bookings/save-all', {
@@ -1012,7 +950,6 @@ export default function AdminDashboard({
     if (window.confirm('Are you statistics-sure you want to purge this submission track?')) {
       const nextLeads = leads.filter((l) => l.id !== id);
       setLeads(nextLeads);
-      localStorage.setItem('jacks_booking_leads', JSON.stringify(nextLeads));
 
       // Save persistently to server
       fetch('/api/bookings/save-all', {
@@ -1028,7 +965,6 @@ export default function AdminDashboard({
   const handleClearAllLeads = () => {
     if (window.confirm('Delete every single lead submission in this buffer?')) {
       setLeads([]);
-      localStorage.setItem('jacks_booking_leads', JSON.stringify([]));
 
       // Save persistently to server
       fetch('/api/bookings/save-all', {
@@ -1143,12 +1079,7 @@ export default function AdminDashboard({
       }
     };
 
-    try {
-      setCustomVisuals(nextVisuals);
-      localStorage.setItem('jacks_service_visuals', JSON.stringify(nextVisuals));
-    } catch (err: any) {
-      console.warn('LocalStorage save is full or failed, proceeding with server-only backup:', err);
-    }
+    setCustomVisuals(nextVisuals);
 
     fetch('/api/visuals', {
       method: 'POST',
@@ -1175,12 +1106,7 @@ export default function AdminDashboard({
       const nextVisuals = { ...customVisuals };
       delete nextVisuals[serviceId];
       
-      try {
-        setCustomVisuals(nextVisuals);
-        localStorage.setItem('jacks_service_visuals', JSON.stringify(nextVisuals));
-      } catch (err) {
-        console.warn('LocalStorage update warning:', err);
-      }
+      setCustomVisuals(nextVisuals);
 
       fetch('/api/visuals', {
         method: 'POST',
