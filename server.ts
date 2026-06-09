@@ -2,20 +2,15 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import admin from "firebase-admin";
 
 dotenv.config();
-
-const currentFilename = typeof import.meta !== "undefined" && import.meta.url ? fileURLToPath(import.meta.url) : "";
-const currentDirname = currentFilename ? path.dirname(currentFilename) : process.cwd();
 
 // Configuration flags for Database Backend
 // Set FORCE_LOCAL_FREE_TIER_BACKEND to true to switch to a 100% free-tier, permanent, and private
@@ -46,8 +41,8 @@ if (!FORCE_LOCAL_FREE_TIER_BACKEND) {
       }
 
       // Initialize admin Firestore - bypasses rules and connects with complete server authority
-      firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
-      console.log(`🔥 Connected to Firebase Web SDK Firestore database instance: ${firebaseConfig.firestoreDatabaseId}`);
+      firestoreDb = admin.firestore(firebaseConfig.firestoreDatabaseId);
+      console.log(`🔥 Connected to Firebase Admin SDK Firestore database instance: ${firebaseConfig.firestoreDatabaseId}`);
 
       if (firebaseConfig.storageBucket) {
         storageBucket = getStorage(firebaseApp);
@@ -72,9 +67,9 @@ async function getConfig(key: string, defaultVal: any) {
   
   if (firestoreDb) {
     try {
-      const docRef = doc(firestoreDb, "site_configs", key);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
+      const docRef = firestoreDb.collection("site_configs").doc(key);
+      const docSnap = await docRef.get();
+      if (docSnap.exists) {
         const snapData = docSnap.data();
         if (snapData && snapData.hasOwnProperty("data")) {
           return snapData.data;
@@ -82,7 +77,7 @@ async function getConfig(key: string, defaultVal: any) {
         return snapData;
       }
     } catch (err: any) {
-      console.warn(`Firestore Web SDK fallback warning: Error reading ${key} from Firestore, using local file backup instead. Details:`, err.message || err);
+      console.warn(`Firestore Admin fallback warning: Error reading ${key} from Firestore, using local file backup instead. Details:`, err.message || err);
     }
   }
 
@@ -111,13 +106,13 @@ async function saveConfig(key: string, value: any) {
     console.error(`Error writing local backup file for ${key}:`, err);
   }
 
-  // 2. Sync directly to Firestore for high-availability multi-instance mirroring using Client SDK
+  // 2. Sync directly to Firestore for high-availability multi-instance mirroring using Admin SDK
   if (firestoreDb) {
     try {
-      const docRef = doc(firestoreDb, "site_configs", key);
+      const docRef = firestoreDb.collection("site_configs").doc(key);
       const payload = Array.isArray(value) ? { data: value } : value;
-      await setDoc(docRef, payload);
-      console.log(`📡 Successfully synced changes for '${key}' to Firebase Firestore using Client SDK.`);
+      await docRef.set(payload);
+      console.log(`📡 Successfully synced changes for '${key}' to Firebase Firestore using Admin SDK.`);
     } catch (err: any) {
       console.warn(`Firestore sync transient warning: Error syncing ${key} to Firestore. Will continue using local filesystem backing. Details:`, err.message || err);
     }
