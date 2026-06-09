@@ -162,6 +162,21 @@ function getMimeType(fileName: string): string {
 
 // Static directories mounting
 app.use("/src/assets/images", express.static(path.join(process.cwd(), "src", "assets", "images")));
+
+// Dynamic /uploads service handler to support read-only container fallbacks (Vercel /tmp)
+app.get("/uploads/:filename", (req, res) => {
+  const filename = req.params.filename;
+  const projectPath = path.join(process.cwd(), "uploads", filename);
+  if (fs.existsSync(projectPath)) {
+    return res.sendFile(projectPath);
+  }
+  const tmpPath = path.join("/tmp", "uploads", filename);
+  if (fs.existsSync(tmpPath)) {
+    return res.sendFile(tmpPath);
+  }
+  res.status(404).send("File not found");
+});
+
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // ==========================================
@@ -955,7 +970,20 @@ app.post("/api/upload-image", async (req, res) => {
       const destPath = path.join(uploadsDir, safeFileName);
       fs.writeFileSync(destPath, buffer);
     } catch (diskErr) {
-      console.warn("⚠️ Local desk write bypassed (or failed due to read-only target container filesystem):", diskErr);
+      console.warn("⚠️ Local disk write bypassed (or failed due to read-only container filesystem under process.cwd()):", diskErr);
+    }
+
+    // Try secondary write to /tmp/uploads for serverless environments like Vercel
+    const tmpUploadsDir = path.join("/tmp", "uploads");
+    try {
+      if (!fs.existsSync(tmpUploadsDir)) {
+        fs.mkdirSync(tmpUploadsDir, { recursive: true });
+      }
+      const tmpDestPath = path.join(tmpUploadsDir, safeFileName);
+      fs.writeFileSync(tmpDestPath, buffer);
+      console.log(`✅ File synchronized to writeable tmp disk at: ${tmpDestPath}`);
+    } catch (tmpErr) {
+      console.warn("⚠️ Local disk write bypassed under /tmp directory:", tmpErr);
     }
 
     let imageUrl = `/uploads/${safeFileName}`;
@@ -964,7 +992,7 @@ app.post("/api/upload-image", async (req, res) => {
     if (firebaseConfigData && firebaseConfigData.storageBucket && firebaseConfigData.apiKey) {
       const bucket = firebaseConfigData.storageBucket;
       const targetMime = mimeType || getMimeType(fileName);
-      const uploadUrl = `https://firebasestorage.googleapis.com/v1/b/${bucket}/o?uploadType=media&name=${encodeURIComponent(`uploads/${safeFileName}`)}`;
+      const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?uploadType=media&name=${encodeURIComponent(`uploads/${safeFileName}`)}&key=${firebaseConfigData.apiKey}`;
       
       try {
         const uploadPromise = (async () => {
@@ -978,7 +1006,7 @@ app.post("/api/upload-image", async (req, res) => {
           
           if (resp.ok) {
             // Update custom metadata to include the download token, otherwise the url returning the token gets 403 Forbidden
-            const patchUrl = `https://firebasestorage.googleapis.com/v1/b/${bucket}/o/${encodeURIComponent(`uploads/${safeFileName}`)}?key=${firebaseConfigData.apiKey}`;
+            const patchUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(`uploads/${safeFileName}`)}?key=${firebaseConfigData.apiKey}`;
             try {
               await fetch(patchUrl, {
                 method: "PATCH",
