@@ -119,12 +119,10 @@ async function saveConfig(key: string, value: any) {
   }
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
 
-  app.use(express.json({ limit: "20mb" }));
-  app.use(express.urlencoded({ limit: "20mb", extended: true }));
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
   // API Route for AI Chatbot
   app.post("/api/chat", async (req, res) => {
@@ -1043,23 +1041,30 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   // Vite development middleware vs Static Production bundle
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+  if (!process.env.VERCEL) {
+    const PORT = Number(process.env.PORT || 3000);
+    if (process.env.NODE_ENV !== "production") {
+      createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      }).then((vite) => {
+        app.use(vite.middlewares);
+        app.listen(PORT, "0.0.0.0", () => {
+          console.log(`Express custom dev server running on http://0.0.0.0:${PORT}`);
+        });
+      }).catch((err) => {
+        console.error("Failed to start Vite dev server:", err);
+      });
+    } else {
+      const distPath = path.join(process.cwd(), "dist");
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+      app.listen(PORT, "0.0.0.0", () => {
+        console.log(`Express custom production server running on http://0.0.0.0:${PORT}`);
+      });
+    }
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Express custom server running on http://0.0.0.0:${PORT}`);
-  });
-}
-
-startServer();
+export default app;
