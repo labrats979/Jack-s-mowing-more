@@ -6,13 +6,23 @@ import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { initializeFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import admin from "firebase-admin";
 
-import firebaseConfigData from "./firebase-applet-config.json";
-
 dotenv.config();
+
+// Safely load firebase configuration using filesystem to prevent compile-time or runtime
+// JSON import assertion crash in ES environment (e.g. Vercel)
+let firebaseConfigData: any = null;
+try {
+  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(configPath)) {
+    firebaseConfigData = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  }
+} catch (configErr) {
+  console.warn("⚠️ Failed to load firebase-applet-config.json dynamically:", configErr);
+}
 
 // Configuration flags for Database Backend
 // Set FORCE_LOCAL_FREE_TIER_BACKEND to true to switch to a 100% free-tier, permanent, and private
@@ -60,9 +70,11 @@ if (!FORCE_LOCAL_FREE_TIER_BACKEND && firebaseConfig) {
       adminBucket = null;
       isFirestoreAdmin = false;
       
-      // Fallback to client/Web SDK Firestore
-      firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
-      console.log(`🔥 Connected to Firebase Client Web SDK Firestore database instance: ${firebaseConfig.firestoreDatabaseId}`);
+      // Fallback to client/Web SDK Firestore with forced long polling (crucial for Serverless lambdas to prevent socket hangs)
+      firestoreDb = initializeFirestore(firebaseApp, {
+        experimentalForceLongPolling: true,
+      }, firebaseConfig.firestoreDatabaseId || "(default)");
+      console.log(`🔥 Connected to Firebase Client Web SDK Firestore database instance: ${firebaseConfig.firestoreDatabaseId || "(default)"} with forced long polling`);
     }
   } catch (err) {
     console.error("❌ Failed to initialize Firebase on backend server:", err);
