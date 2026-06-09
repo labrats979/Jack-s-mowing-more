@@ -16,12 +16,40 @@ dotenv.config();
 // JSON import assertion crash in ES environment (e.g. Vercel)
 let firebaseConfigData: any = null;
 try {
-  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-  if (fs.existsSync(configPath)) {
-    firebaseConfigData = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  let configPath = "";
+  const pathsToTry = [
+    path.join(process.cwd(), "firebase-applet-config.json"),
+    path.join(process.cwd(), "api", "firebase-applet-config.json")
+  ];
+  
+  try {
+    const typeofDirname = typeof __dirname;
+    if (typeofDirname !== "undefined") {
+      pathsToTry.push(path.join(__dirname, "firebase-applet-config.json"));
+      pathsToTry.push(path.join(__dirname, "..", "firebase-applet-config.json"));
+    } else {
+      const urlObject = new URL(import.meta.url);
+      const derivedDirname = path.dirname(urlObject.pathname);
+      pathsToTry.push(path.join(derivedDirname, "firebase-applet-config.json"));
+      pathsToTry.push(path.join(derivedDirname, "..", "firebase-applet-config.json"));
+    }
+  } catch (_) {}
+
+  for (const p of pathsToTry) {
+    if (p && fs.existsSync(p)) {
+      configPath = p;
+      break;
+    }
   }
-} catch (configErr) {
-  console.warn("⚠️ Failed to load firebase-applet-config.json dynamically:", configErr);
+
+  if (configPath) {
+    firebaseConfigData = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    console.log("🔥 Loaded firebase-applet-config.json from path:", configPath);
+  } else {
+    console.warn("⚠️ firebase-applet-config.json was not found in any of these paths:", pathsToTry);
+  }
+} catch (configErr: any) {
+  console.warn("⚠️ Failed to load firebase-applet-config.json dynamically:", configErr.message || configErr);
 }
 
 // Configuration flags for Database Backend
