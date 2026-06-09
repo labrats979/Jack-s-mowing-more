@@ -2,7 +2,6 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
@@ -10,6 +9,8 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import admin from "firebase-admin";
+
+import firebaseConfigData from "./firebase-applet-config.json";
 
 dotenv.config();
 
@@ -24,50 +25,44 @@ let firebaseApp: any = null;
 let firestoreDb: any = null;
 let storageBucket: any = null;
 let adminBucket: any = null;
-let firebaseConfig: any = null;
+let firebaseConfig: any = firebaseConfigData;
 let isFirestoreAdmin = false;
 
-if (!FORCE_LOCAL_FREE_TIER_BACKEND) {
+if (!FORCE_LOCAL_FREE_TIER_BACKEND && firebaseConfig) {
   try {
-    const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-    if (fs.existsSync(configPath)) {
-      firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-      firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-      
-      // Initialize Firebase Storage bucket (Client SDK is always safe/valid to initialize)
+    firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    
+    // Initialize Firebase Storage bucket (Client SDK is always safe/valid to initialize)
+    if (firebaseConfig.storageBucket) {
+      storageBucket = getStorage(firebaseApp);
+      console.log(`🔥 Connected to Firebase Storage bucket: ${firebaseConfig.storageBucket}`);
+    }
+
+    // Attempt to initialize Admin SDK with service/ambient credentials
+    try {
+      if (admin.apps.length === 0) {
+        admin.initializeApp({
+          projectId: firebaseConfig.projectId,
+          storageBucket: firebaseConfig.storageBucket,
+        });
+      }
+      firestoreDb = admin.firestore(firebaseConfig.firestoreDatabaseId);
+      isFirestoreAdmin = true;
+      console.log(`🔥 Connected to Firebase Admin SDK Firestore database instance: ${firebaseConfig.firestoreDatabaseId}`);
+
       if (firebaseConfig.storageBucket) {
-        storageBucket = getStorage(firebaseApp);
-        console.log(`🔥 Connected to Firebase Storage bucket: ${firebaseConfig.storageBucket}`);
+        adminBucket = admin.storage().bucket(firebaseConfig.storageBucket);
+        console.log(`🔥 Connected to Firebase Admin Storage bucket: ${firebaseConfig.storageBucket}`);
       }
-
-      // Attempt to initialize Admin SDK with service/ambient credentials
-      try {
-        if (admin.apps.length === 0) {
-          admin.initializeApp({
-            projectId: firebaseConfig.projectId,
-            storageBucket: firebaseConfig.storageBucket,
-          });
-        }
-        firestoreDb = admin.firestore(firebaseConfig.firestoreDatabaseId);
-        isFirestoreAdmin = true;
-        console.log(`🔥 Connected to Firebase Admin SDK Firestore database instance: ${firebaseConfig.firestoreDatabaseId}`);
-
-        if (firebaseConfig.storageBucket) {
-          adminBucket = admin.storage().bucket(firebaseConfig.storageBucket);
-          console.log(`🔥 Connected to Firebase Admin Storage bucket: ${firebaseConfig.storageBucket}`);
-        }
-        console.log("🔥 Firebase Admin SDK successfully initialized!");
-      } catch (adminErr: any) {
-        console.warn(`⚠️ Firebase Admin SDK failed to initialize (this is normal in serverless or external hosts like Vercel). Falling back to Client Web SDK. Detail:`, adminErr.message || adminErr);
-        adminBucket = null;
-        isFirestoreAdmin = false;
-        
-        // Fallback to client/Web SDK Firestore
-        firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
-        console.log(`🔥 Connected to Firebase Client Web SDK Firestore database instance: ${firebaseConfig.firestoreDatabaseId}`);
-      }
-    } else {
-      console.warn("⚠️ firebase-applet-config.json not found. Fallback to local files only.");
+      console.log("🔥 Firebase Admin SDK successfully initialized!");
+    } catch (adminErr: any) {
+      console.warn(`⚠️ Firebase Admin SDK failed to initialize (this is normal in serverless or external hosts like Vercel). Falling back to Client Web SDK. Detail:`, adminErr.message || adminErr);
+      adminBucket = null;
+      isFirestoreAdmin = false;
+      
+      // Fallback to client/Web SDK Firestore
+      firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+      console.log(`🔥 Connected to Firebase Client Web SDK Firestore database instance: ${firebaseConfig.firestoreDatabaseId}`);
     }
   } catch (err) {
     console.error("❌ Failed to initialize Firebase on backend server:", err);
@@ -1077,16 +1072,20 @@ Guidance: To send actual emails, please save your Gmail address and Google App P
   if (!process.env.VERCEL) {
     const PORT = Number(process.env.PORT || 3000);
     if (process.env.NODE_ENV !== "production") {
-      createViteServer({
-        server: { middlewareMode: true },
-        appType: "spa",
-      }).then((vite) => {
-        app.use(vite.middlewares);
-        app.listen(PORT, "0.0.0.0", () => {
-          console.log(`Express custom dev server running on http://0.0.0.0:${PORT}`);
+      import("vite").then(({ createServer: createViteServer }) => {
+        createViteServer({
+          server: { middlewareMode: true },
+          appType: "spa",
+        }).then((vite) => {
+          app.use(vite.middlewares);
+          app.listen(PORT, "0.0.0.0", () => {
+            console.log(`Express custom dev server running on http://0.0.0.0:${PORT}`);
+          });
+        }).catch((err) => {
+          console.error("Failed to start Vite dev server:", err);
         });
-      }).catch((err) => {
-        console.error("Failed to start Vite dev server:", err);
+      }).catch((importErr) => {
+        console.error("Failed to dynamically import 'vite' for dev mode:", importErr);
       });
     } else {
       const distPath = path.join(process.cwd(), "dist");
