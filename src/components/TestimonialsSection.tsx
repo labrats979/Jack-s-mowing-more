@@ -129,25 +129,40 @@ export default function TestimonialsSection() {
   const displayedReviews = testimonials.slice(slideIndex * cardsPerPage, (slideIndex + 1) * cardsPerPage);
 
   return (
-    <section id="testimonials" className="py-24 bg-white text-stone-850 border-b border-stone-100 relative grid-dots overflow-hidden">
+    <section id="testimonials" className="py-24 bg-white text-stone-950 border-b border-stone-100 relative grid-dots overflow-hidden">
       <div className="max-w-7xl mx-auto px-6 relative z-10">
         
         {/* Section Header */}
-        <div className="text-center max-w-xl mx-auto mb-16">
-          <h2 className="font-display font-bold text-3xl sm:text-4xl text-stone-900 tracking-tight leading-none mb-4 uppercase">
-            Client Testimonials
-          </h2>
-          <p className="text-stone-605 font-light leading-relaxed text-sm sm:text-base">
-            Satisfied residential property owners across Milltown, New Jersey share their lawn care and landscaping experiences.
-          </p>
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-16 gap-6 max-w-7xl mx-auto border-b border-stone-100 pb-8 text-left">
+          <div className="max-w-2xl">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-150 inline-block mb-3">
+              Client Feedback
+            </span>
+            <h2 className="font-display font-bold text-3xl sm:text-4xl text-stone-900 tracking-tight leading-none mb-4 uppercase">
+              Client Testimonials
+            </h2>
+            <p className="text-stone-900 font-normal leading-relaxed text-sm sm:text-base">
+              Satisfied residential property owners across Milltown, New Jersey share their lawn care and landscaping experiences.
+            </p>
+          </div>
+          <div className="shrink-0">
+            <button
+              onClick={() => setIsFormVisible(!isFormVisible)}
+              className="py-3 px-6 bg-emerald-750 hover:bg-emerald-800 text-white font-mono font-bold uppercase tracking-wider text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm whitespace-nowrap"
+              id="add-review-top-cta"
+            >
+              <Plus className={`w-4 h-4 transition-transform duration-300 ${isFormVisible ? 'rotate-45' : ''}`} />
+              {isFormVisible ? "Close Review Form" : "Submit a Review"}
+            </button>
+          </div>
         </div>
 
         {/* OVERALL RATING DISPLAY SECTION */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch mb-16">
           
           {/* Main Average Score Badge */}
-          <div className="bg-stone-50 border border-stone-250/60 p-8 rounded-2xl flex flex-col items-center justify-center text-center shadow-xs">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-emerald-805 bg-emerald-50 px-2.5 py-1 rounded-md mb-4 border border-emerald-150">
+          <div className="bg-stone-50 border border-stone-300 p-8 rounded-2xl flex flex-col items-center justify-center text-center shadow-xs">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded-md mb-4 border border-emerald-150">
               Verified Score
             </span>
             <div className="text-6xl font-display font-extrabold text-stone-900 tracking-tighter mb-2">
@@ -167,13 +182,13 @@ export default function TestimonialsSection() {
               })}
             </div>
 
-            <div className="text-xs text-stone-550 font-sans font-light mt-1">
+            <div className="text-xs text-stone-900 font-sans font-semibold mt-1">
               Based on {totalReviewsCount} local project reviews
             </div>
 
             <button
               onClick={() => setIsFormVisible(!isFormVisible)}
-              className="mt-6 w-full py-2.5 px-4 bg-emerald-750 hover:bg-emerald-800 text-white font-mono font-bold uppercase tracking-wider text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+              className="mt-6 w-full py-2.5 px-4 bg-emerald-800 hover:bg-emerald-900 text-white font-mono font-bold uppercase tracking-wider text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs"
             >
               <Plus className="w-4 h-4" />
               Write Local Review
@@ -181,7 +196,7 @@ export default function TestimonialsSection() {
           </div>
 
           {/* Star Distribution Progress Bars */}
-          <div className="bg-stone-50 border border-stone-250/60 p-8 rounded-2xl flex flex-col justify-between shadow-xs lg:col-span-2">
+          <div className="bg-stone-50 border border-stone-300 p-8 rounded-2xl flex flex-col justify-between shadow-xs lg:col-span-2">
             <h4 className="font-display font-bold text-xs text-stone-900 uppercase tracking-wide text-left mb-4">
               Rating Distribution Breakdown
             </h4>
@@ -247,7 +262,7 @@ export default function TestimonialsSection() {
                     <CheckCircle className="w-12 h-12 text-emerald-700 animate-bounce" />
                     <div>
                       <h4 className="font-display font-bold text-emerald-700 text-base">Review Published Successfully!</h4>
-                      <p className="text-[11px] text-stone-550 font-mono mt-1">Your review has been saved and is active on the website showcase.</p>
+                      <p className="text-[11px] text-stone-900 font-mono mt-1 font-bold">Your review has been saved and is active on the website showcase.</p>
                     </div>
                   </div>
                 ) : (
@@ -255,7 +270,7 @@ export default function TestimonialsSection() {
                     
                     {/* Star Rating selector */}
                     <div className="space-y-2 text-left">
-                      <label className="text-xs text-stone-605 font-mono uppercase tracking-wider block font-bold">Select Star Score *</label>
+                      <label className="text-xs text-stone-900 font-mono uppercase tracking-wider block font-bold">Select Star Score *</label>
                       <div className="flex gap-1.5 items-center">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <button
@@ -281,7 +296,7 @@ export default function TestimonialsSection() {
                     {/* Input Columns */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
                       <div className="space-y-1.5">
-                        <label className="text-xs text-stone-600 font-semibold" htmlFor="review-author">Your Name *</label>
+                        <label className="text-xs text-stone-900 font-bold" htmlFor="review-author">Your Name *</label>
                         <input
                           id="review-author"
                           type="text"
@@ -289,31 +304,31 @@ export default function TestimonialsSection() {
                           value={newAuthor}
                           onChange={(e) => setNewAuthor(e.target.value)}
                           placeholder="Eleanor Vance"
-                          className="w-full px-4 py-2.5 rounded-lg bg-white text-stone-900 border border-stone-250 focus:border-emerald-650 focus:ring-1 focus:ring-emerald-600/30 text-sm focus:outline-none placeholder:text-stone-400"
+                          className="w-full px-4 py-2.5 rounded-lg bg-white text-stone-950 border border-stone-300 focus:border-emerald-650 focus:ring-1 focus:ring-emerald-600/30 text-sm focus:outline-none placeholder:text-stone-400 font-medium"
                         />
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-xs text-stone-600 font-semibold" htmlFor="review-location">Your City</label>
+                        <label className="text-xs text-stone-900 font-bold" htmlFor="review-location">Your City</label>
                         <input
                           id="review-location"
                           type="text"
                           value={newLocation}
                           onChange={(e) => setNewLocation(e.target.value)}
                           placeholder="Milltown, NJ"
-                          className="w-full px-4 py-2.5 rounded-lg bg-white text-stone-900 border border-stone-250 focus:border-emerald-650 focus:ring-1 focus:ring-emerald-600/30 text-sm focus:outline-none placeholder:text-stone-400"
+                          className="w-full px-4 py-2.5 rounded-lg bg-white text-stone-950 border border-stone-300 focus:border-emerald-650 focus:ring-1 focus:ring-emerald-600/30 text-sm focus:outline-none placeholder:text-stone-400 font-medium"
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
                       <div className="space-y-1.5">
-                        <label className="text-xs text-stone-600 font-semibold" htmlFor="review-project">Project Type *</label>
+                        <label className="text-xs text-stone-900 font-bold" htmlFor="review-project">Project Type *</label>
                         <select
                           id="review-project"
                           value={newProjectType}
                           onChange={(e) => setNewProjectType(e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-lg bg-white text-stone-900 border border-stone-250 focus:border-emerald-650 focus:ring-1 focus:ring-emerald-600/30 text-sm focus:outline-none"
+                          className="w-full px-4 py-2.5 rounded-lg bg-white text-stone-950 border border-stone-300 focus:border-emerald-650 focus:ring-1 focus:ring-emerald-600/30 text-sm focus:outline-none font-medium"
                         >
                           <option>Horticulture & Planting Bed</option>
                           <option>Flagstone & Slate Patio</option>
@@ -328,7 +343,7 @@ export default function TestimonialsSection() {
                     </div>
 
                     <div className="space-y-1.5 text-left">
-                      <label className="text-xs text-stone-600 font-semibold" htmlFor="review-text">Review Comments *</label>
+                      <label className="text-xs text-stone-900 font-bold" htmlFor="review-text">Review Comments *</label>
                       <textarea
                         id="review-text"
                         required
@@ -336,7 +351,7 @@ export default function TestimonialsSection() {
                         value={newContent}
                         onChange={(e) => setNewContent(e.target.value)}
                         placeholder="The custom masonry came out amazing. Incredible curb appeal and professional landscaping crew..."
-                        className="w-full px-4 py-2.5 rounded-lg bg-white text-stone-900 border border-stone-250 focus:border-emerald-650 focus:ring-1 focus:ring-emerald-600/30 text-sm focus:outline-none placeholder:text-stone-400"
+                        className="w-full px-4 py-2.5 rounded-lg bg-white text-stone-950 border border-stone-300 focus:border-emerald-650 focus:ring-1 focus:ring-emerald-600/30 text-sm focus:outline-none placeholder:text-stone-400 font-medium"
                       />
                     </div>
 
@@ -366,10 +381,10 @@ export default function TestimonialsSection() {
                 {displayedReviews.map((test) => (
                   <div
                     key={test.id}
-                    className="bg-stone-50/80 p-6 rounded-2xl border border-stone-250/70 shadow-3xs relative flex flex-col justify-between hover:border-emerald-300 hover:shadow-xs transition-all duration-300 group text-left min-h-[290px]"
+                    className="bg-stone-50/80 p-6 rounded-2xl border border-stone-300 shadow-sm relative flex flex-col justify-between hover:border-emerald-300 hover:shadow-md transition-all duration-300 group text-left min-h-[290px]"
                   >
                     {/* Corner quote decorator */}
-                    <div className="absolute right-6 top-6 text-stone-205 pointer-events-none group-hover:text-emerald-50 transition-colors">
+                    <div className="absolute right-6 top-6 text-stone-400 pointer-events-none group-hover:text-emerald-50 transition-colors">
                       <Quote className="w-8 h-8 fill-current rotate-180 opacity-20" />
                     </div>
 
@@ -377,29 +392,29 @@ export default function TestimonialsSection() {
                       {/* Visual Stars */}
                       <div className="flex gap-0.5">
                         {Array.from({ length: Math.min(Math.max(test.rating || 5, 1), 5) }).map((_, i) => (
-                          <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                          <Star key={i} className="w-4 h-4 fill-amber-500 text-amber-500" />
                         ))}
                       </div>
 
                       {/* Content block with line clamp */}
-                      <p className="text-stone-650 text-xs sm:text-[13px] leading-relaxed font-light italic flex-1 line-clamp-6">
+                      <p className="text-stone-950 text-xs sm:text-[13px] leading-relaxed font-semibold flex-1 line-clamp-6">
                         "{test.content}"
                       </p>
                     </div>
 
                     {/* Author Footer info */}
-                    <div className="flex items-center gap-3 pt-4 mt-6 border-t border-stone-150">
-                      <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-stone-200 bg-stone-100 flex items-center justify-center text-stone-400">
+                    <div className="flex items-center gap-3 pt-4 mt-6 border-t border-stone-200">
+                      <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-stone-200 bg-stone-100 flex items-center justify-center text-stone-500">
                         <UserCircle2 className="w-5 h-5" />
                       </div>
                       <div>
-                        <h5 className="font-display font-semibold text-[11px] text-stone-850 font-bold leading-none mb-1">
+                        <h5 className="font-display font-extrabold text-[12px] text-stone-950 leading-none mb-1">
                           {test.author}
                         </h5>
-                        <div className="text-[9px] text-stone-500 font-mono flex flex-wrap gap-1 items-center">
+                        <div className="text-[10px] text-stone-700 font-mono flex flex-wrap gap-1 items-center">
                           <span>{test.location}</span>
                           <span>•</span>
-                          <span className="text-emerald-705 font-bold">{test.projectType}</span>
+                          <span className="text-emerald-900 font-bold">{test.projectType}</span>
                         </div>
                       </div>
                     </div>
