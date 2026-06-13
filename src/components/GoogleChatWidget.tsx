@@ -136,6 +136,7 @@ export default function GoogleChatWidget() {
       setMessages(prev => [...prev, botMessage]);
     } catch (err: any) {
       console.error("Communication error:", err);
+      setErrorStatus(err.message || String(err));
       
       // Fallback helpful message that doesn't say "Gemini AI"
       const fallbackMsg: ChatMessage = {

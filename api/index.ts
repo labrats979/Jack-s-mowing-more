@@ -228,17 +228,25 @@ app.post("/api/chat", async (req, res) => {
     const contents = [];
     if (Array.isArray(history)) {
       for (const msg of history) {
-        contents.push({
-          role: msg.role === "model" || msg.role === "assistant" ? "model" : "user",
-          parts: [{ text: msg.text }]
-        });
+        if (msg && typeof msg.text === "string" && msg.text.trim()) {
+          contents.push({
+            role: msg.role === "model" || msg.role === "assistant" ? "model" as const : "user" as const,
+            parts: [{ text: msg.text.trim() }]
+          });
+        }
       }
     }
 
-    contents.push({
-      role: "user",
-      parts: [{ text: message }]
-    });
+    if (message && typeof message === "string" && message.trim()) {
+      contents.push({
+        role: "user" as const,
+        parts: [{ text: message.trim() }]
+      });
+    }
+
+    if (contents.length === 0) {
+      return res.status(400).json({ error: "Cannot process an empty chat message." });
+    }
 
     const systemInstruction = 
       `You are "Anthany", a senior Horticultural Representative and Customer Desk Advisor writing back directly to clients of "Jack's Mowing & More" — a high-quality residential landscaping brand based exclusively in Milltown, New Jersey (serving ONLY Milltown, New Jersey and surrounding immediate local areas). Do NOT mention or suggest serving any other areas or Oregon under any circumstances.

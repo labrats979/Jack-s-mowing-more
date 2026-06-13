@@ -1,9 +1,7 @@
-import dotenv from "dotenv";
+import "dotenv/config";
 import path from "path";
 import express from "express";
 import app from "./api/index"; // Safe ES module import of the Express app
-
-dotenv.config();
 
 const PORT = 3000;
 
