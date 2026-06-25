@@ -8,6 +8,7 @@ import TestimonialsSection from './components/TestimonialsSection';
 import BookingForm from './components/BookingForm';
 import JacksLogo from './components/JacksLogo';
 import ServiceDetailPage from './components/ServiceDetailPage';
+import FullPortfolioPage from './components/FullPortfolioPage';
 import AdminDashboard from './components/AdminDashboard';
 import GoogleChatWidget from './components/GoogleChatWidget';
 import { INITIAL_SERVICES } from './data';
@@ -15,10 +16,11 @@ import { Service } from './types';
 import { Compass, Hammer, Flower, Sun, Droplets, ArrowRight, ShieldCheck, TreePine, Mail, Phone, MapPin } from 'lucide-react';
 
 export default function App() {
-  // Cover Photo customizable background state
+  // Cover Photo customizable background state and overlay opacity tint
   const [coverPhoto, setCoverPhoto] = useState<string>('/src/assets/images/landscape_hero_1779327295782.png');
+  const [coverPhotoTint, setCoverPhotoTint] = useState<number>(35);
 
-  // Fetch the cover photo from the server database on mount
+  // Fetch the cover photo and tint overlay opacity from the server database on mount
   useEffect(() => {
     fetch('/api/cover-photo')
       .then(res => {
@@ -28,6 +30,9 @@ export default function App() {
       .then(data => {
         if (data.coverPhoto) {
           setCoverPhoto(data.coverPhoto);
+        }
+        if (data.coverPhotoTint !== undefined) {
+          setCoverPhotoTint(data.coverPhotoTint);
         }
       })
       .catch(err => {
@@ -126,17 +131,25 @@ export default function App() {
     });
   };
 
-  // Handle saving the cover photo to both client state and backend database
-  const handleSaveCoverPhoto = (url: string) => {
+  // Handle saving the cover photo and tint overlay opacity to both client state and backend database
+  const handleSaveCoverPhoto = (url: string, tint?: number) => {
     setCoverPhoto(url);
+    if (tint !== undefined) {
+      setCoverPhotoTint(tint);
+    }
 
     // Only persist if it's a real, resolved/remote image URL (not a local browser blob pointer)
     if (url && !url.startsWith('blob:')) {
+      const payload: { coverPhoto: string; coverPhotoTint?: number } = { coverPhoto: url };
+      if (tint !== undefined) {
+        payload.coverPhotoTint = tint;
+      }
+
       // Save to the server-side persistent database
       fetch('/api/cover-photo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ coverPhoto: url })
+        body: JSON.stringify(payload)
       })
       .then(res => {
         if (!res.ok) throw new Error('Cover photo save failed');
@@ -146,6 +159,112 @@ export default function App() {
         console.error('Server persistent cover photo save failed:', err);
       });
     }
+  };
+
+  // Portfolio Photos customizable 15 frames state
+  const [portfolioPhotos, setPortfolioPhotos] = useState<any[]>([]);
+
+  // Fetch customizable portfolio photo frames from the server database on mount
+  useEffect(() => {
+    fetch('/api/portfolio-photos')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch portfolio photos');
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setPortfolioPhotos(data);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not retrieve portfolio photos from server:', err);
+      });
+  }, []);
+
+  // Handle saving the 15 customizable portfolio photo frames
+  const handleSavePortfolioPhotos = (updatedPhotos: any[]) => {
+    setPortfolioPhotos(updatedPhotos);
+
+    // Filter out blob images so we don't save giant client-side URIs
+    const cleanPhotos = updatedPhotos.map(p => ({
+      ...p,
+      image: p.image.startsWith('blob:') ? '' : p.image
+    }));
+
+    fetch('/api/portfolio-photos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photos: cleanPhotos })
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Save portfolio photos failed');
+      return res.json();
+    })
+    .catch(err => {
+      console.error('Failed to save portfolio photos on server:', err);
+    });
+  };
+
+  // Customizable Site-Wide Texts state
+  const [siteTexts, setSiteTexts] = useState<any>({
+    heroTitle: "At Jack’s Mowing and More, we provide dependable lawn care and landscaping services that make your property stand out",
+    heroButtonEstimator: "Calculate Your Rate",
+    heroButtonServices: "Our Services",
+    servicesBadge: "Expert Craftsmanship",
+    servicesTitle: "Professional Services Offered",
+    servicesDescription: "From specialized site grading and stone masonry to clean lawn cutting, lawn recovery, and custom landscaping, we care for Jack's premium residential systems.",
+    portfolioBadge: "Completed Yard Masterpieces",
+    portfolioTitle: "Our Project Portfolio",
+    portfolioDescription: "Take a look at some of our recent professional designs. Each of these represents meticulous pruning, precise edging, and premium turf grooming.",
+    beforeAfterTitle: "Interactive Before & After!",
+    beforeAfterSubtitle: "↔ Slide to reveal finished treatment precision ↔",
+    estimatorBadge: "Calculate Custom Rates",
+    estimatorTitle: "Interactive Cost Estimator",
+    estimatorDescription: "Calculate instant estimated prices for any combination of our signature treatments.",
+    testimonialsBadge: "Client Testimonials",
+    testimonialsTitle: "Reviews From Real NJ Customers",
+    testimonialsDescription: "See what our satisfied homeowners in Milltown, East Brunswick, and surrounding towns say about Jack's Premium services.",
+    bookingBadge: "Schedule An Estimate",
+    bookingTitle: "Ready for your lawn restoration?",
+    bookingDescription: "Enter your property details below to submit a formal request for premium cleanup and estimate pricing."
+  });
+
+  // Fetch customizable site texts on mount
+  useEffect(() => {
+    fetch('/api/site-texts')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch site texts');
+        return res.json();
+      })
+      .then(data => {
+        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          setSiteTexts(prev => ({
+            ...prev,
+            ...data
+          }));
+        }
+      })
+      .catch(err => {
+        console.warn('Could not retrieve site-wide texts from server, using local defaults:', err);
+      });
+  }, []);
+
+  // Handle saving the customizable site texts
+  const handleSaveSiteTexts = (updatedTexts: any) => {
+    setSiteTexts(updatedTexts);
+
+    fetch('/api/site-texts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedTexts)
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('Save site texts failed');
+      return res.json();
+    })
+    .catch(err => {
+      console.error('Failed to save site texts on server:', err);
+    });
   };
 
   // Load initial services
@@ -282,16 +401,23 @@ export default function App() {
             onGoToEstimator={() => handleNavigateTo('estimator')}
             onExploreServices={() => handleNavigateTo('services')}
             coverPhoto={coverPhoto}
+            coverPhotoTint={coverPhotoTint}
+            siteTexts={siteTexts}
           />
 
           {/* 3. DYNAMICALLY MODIFIABLE SERVICES SECTION */}
           <ServicesSection
             services={services}
             onSelectServicePage={handleSelectServicePage}
+            siteTexts={siteTexts}
           />
 
           {/* 4. CASE STUDIES & VISUAL SLIDING REVEAL PORTFOLIO */}
-          <ProjectPortfolio />
+          <ProjectPortfolio
+            portfolioPhotos={portfolioPhotos}
+            onSeeMore={() => handleSelectServicePage('portfolio')}
+            siteTexts={siteTexts}
+          />
 
           {/* 6. INTERACTIVE COST ESTIMATOR CALCULATOR */}
           <section id="estimator">
@@ -300,11 +426,12 @@ export default function App() {
               services={services}
               selectedServiceIds={selectedServiceIds}
               onToggleServiceId={handleToggleServiceId}
+              siteTexts={siteTexts}
             />
           </section>
 
           {/* 7. TESTIMONIALS OF CUSTOM WORK & ONLINE REVIEW LOGGER */}
-          <TestimonialsSection />
+          <TestimonialsSection services={services} />
 
           {/* 8. CONTACT & ESTIMATES BOOKING REQUEST PANEL */}
           <BookingForm
@@ -313,11 +440,19 @@ export default function App() {
             services={services}
             selectedServiceIds={selectedServiceIds}
             onToggleServiceId={handleToggleServiceId}
+            siteTexts={siteTexts}
           />
 
           {/* 9. AI BOTANICAL CHATBOT */}
           <GoogleChatWidget />
         </>
+      ) : currentActiveView === 'portfolio' ? (
+        <div className="pt-20">
+          <FullPortfolioPage
+            portfolioPhotos={portfolioPhotos}
+            onBack={handleBackToHome}
+          />
+        </div>
       ) : (
         /* Render individual detail page */
         <div className="pt-20">
@@ -409,11 +544,16 @@ export default function App() {
         onSaveServices={handleSaveServices}
         onRestoreDefaults={handleRestoreDefaults}
         coverPhoto={coverPhoto}
+        coverPhotoTint={coverPhotoTint}
         onSaveCoverPhoto={handleSaveCoverPhoto}
         logoConfig={logoConfig}
         onSaveLogoConfig={handleSaveLogoConfig}
         contactInfo={contactInfo}
         onSaveContactInfo={handleSaveContactInfo}
+        portfolioPhotos={portfolioPhotos}
+        onSavePortfolioPhotos={handleSavePortfolioPhotos}
+        siteTexts={siteTexts}
+        onSaveSiteTexts={handleSaveSiteTexts}
       />
 
     </div>

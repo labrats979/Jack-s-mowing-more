@@ -10,6 +10,7 @@ interface BookingFormProps {
   onClose?: () => void;
   selectedServiceIds?: string[];
   onToggleServiceId?: (serviceId: string) => void;
+  siteTexts?: any;
 }
 
 export default function BookingForm({
@@ -18,6 +19,7 @@ export default function BookingForm({
   services = [],
   selectedServiceIds = [],
   onToggleServiceId = () => {},
+  siteTexts
 }: BookingFormProps) {
   const [formData, setFormData] = useState({
     fullName: '',
@@ -140,9 +142,15 @@ export default function BookingForm({
         
         {/* Module Header */}
         <div className="text-center max-w-xl mx-auto mb-16">
-          <h2 className="font-display font-bold text-3xl sm:text-4xl text-emerald-700 tracking-tight leading-none uppercase">
-            Get On Our Schedule
+          <span className="text-stone-500 font-mono text-[10px] uppercase tracking-[0.2em] block mb-3 font-bold">
+            {siteTexts?.bookingBadge || "Schedule An Estimate"}
+          </span>
+          <h2 className="font-display font-bold text-3xl sm:text-4xl text-emerald-700 tracking-tight leading-none uppercase mb-4">
+            {siteTexts?.bookingTitle || "Ready for your lawn restoration?"}
           </h2>
+          <p className="text-stone-500 text-xs font-light leading-relaxed">
+            {siteTexts?.bookingDescription || "Enter your property details below to submit a formal request for premium cleanup and estimate pricing."}
+          </p>
         </div>
 
         {/* Core Request Card */}

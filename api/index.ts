@@ -620,7 +620,7 @@ app.post("/api/reviews", async (req, res) => {
       author: author,
       location: location || "Local Property Owner",
       rating: Number(rating) || 5,
-      projectType: projectType || "Property Care",
+      projectType: projectType !== undefined ? projectType : "Property Care",
       content: content,
       date: new Date().toLocaleDateString("en-US", { year: 'numeric', month: 'long' }),
       isGoogle: false
@@ -676,8 +676,12 @@ app.post("/api/visuals", async (req, res) => {
 // 13. API Route for Fetching Persistent Cover Photo
 app.get("/api/cover-photo", async (req, res) => {
   try {
-    const defaultCover = { coverPhoto: '/src/assets/images/landscape_hero_1779327295782.png' };
+    const defaultCover = { coverPhoto: '/src/assets/images/landscape_hero_1779327295782.png', coverPhotoTint: 35 };
     const config = await getConfig("cover_photo", defaultCover);
+    // Ensure coverPhotoTint is a number if present
+    if (config && config.coverPhotoTint === undefined) {
+      config.coverPhotoTint = 35;
+    }
     res.json(config);
   } catch (error: any) {
     console.error("Failed to read cover photo database:", error);
@@ -688,12 +692,59 @@ app.get("/api/cover-photo", async (req, res) => {
 // 14. API Route for Saving Persistent Cover Photo
 app.post("/api/cover-photo", async (req, res) => {
   try {
-    const { coverPhoto } = req.body;
-    await saveConfig("cover_photo", { coverPhoto });
-    res.json({ success: true, coverPhoto });
+    const { coverPhoto, coverPhotoTint } = req.body;
+    const config = { 
+      coverPhoto, 
+      coverPhotoTint: coverPhotoTint !== undefined ? Number(coverPhotoTint) : 35 
+    };
+    await saveConfig("cover_photo", config);
+    res.json({ success: true, ...config });
   } catch (error: any) {
     console.error("Failed to save cover photo to database:", error);
     res.status(500).json({ error: "Failed to persist cover photo on server." });
+  }
+});
+
+// 14b. API Route for Fetching Persistent Portfolio Photos (15 frames)
+app.get("/api/portfolio-photos", async (req, res) => {
+  try {
+    const defaultPhotos = [
+      { id: "frame-1", title: "Botanical Promenade", description: "Lush perennial overhaul in Milltown", image: "/src/assets/images/garden_beds_1779327341663.png" },
+      { id: "frame-2", title: "Slate Fire Oasis", description: "Natural flagstone slate outdoor terrace", image: "/src/assets/images/hardscape_patio_1779327358083.png" },
+      { id: "frame-3", title: "Cascading Zen Pond", description: "Quiet recirculating biological stream", image: "/src/assets/images/water_feature_1779327375070.png" },
+      { id: "frame-4", title: "Precision Lawn Edge", description: "Symmetrical shapes and border mowing", image: "/src/assets/images/garden_beds_1779327341663.png" },
+      { id: "frame-5", title: "Hardscape Block Steps", description: "Custom granite step tiers and pathways", image: "/src/assets/images/hardscape_patio_1779327358083.png" },
+      { id: "frame-6", title: "Lawn Aeration & Seeding", description: "Soil prep and nutrient deep feed recovery", image: "/src/assets/images/water_feature_1779327375070.png" },
+      { id: "frame-7", title: "English Lavender Garden", description: "Vibrant purple drifts with rich cedar mulch", image: "/src/assets/images/garden_beds_1779327341663.png" },
+      { id: "frame-8", title: "Natural Stone Pathway", description: "Sturdy walkways with weed-free joint sand", image: "/src/assets/images/hardscape_patio_1779327358083.png" },
+      { id: "frame-9", title: "Biological Stream Bed", description: "Natural waterfall steps and perimeter plants", image: "/src/assets/images/water_feature_1779327375070.png" },
+      { id: "frame-10", title: "Mulched Perennial Beds", description: "Consistent 3-inch protection and moisture shield", image: "/src/assets/images/garden_beds_1779327341663.png" },
+      { id: "frame-11", title: "Flagstone Dining Patio", description: "Cozy conversational zone with flagstone pavers", image: "/src/assets/images/hardscape_patio_1779327358083.png" },
+      { id: "frame-12", title: "Koi Pond Oasis", description: "Clean eco-liners and perimeter Japanese maple", image: "/src/assets/images/water_feature_1779327375070.png" },
+      { id: "frame-13", title: "Structured Shrub Garden", description: "Symmetrical evergreens and leaf pruning", image: "/src/assets/images/garden_beds_1779327341663.png" },
+      { id: "frame-14", title: "Modern Cast Planters", description: "Tall concrete planters with local floral accents", image: "/src/assets/images/hardscape_patio_1779327358083.png" },
+      { id: "frame-15", title: "Lush Turf Recovery", description: "Dense leafy green turf restoration", image: "/src/assets/images/water_feature_1779327375070.png" }
+    ];
+    const config = await getConfig("portfolio_photos", defaultPhotos);
+    res.json(config);
+  } catch (error: any) {
+    console.error("Failed to read portfolio photos database:", error);
+    res.status(500).json({ error: "Failed to retrieve portfolio photos." });
+  }
+});
+
+// 14c. API Route for Saving Persistent Portfolio Photos (15 frames)
+app.post("/api/portfolio-photos", async (req, res) => {
+  try {
+    const { photos } = req.body;
+    if (!Array.isArray(photos)) {
+      return res.status(400).json({ error: "Photos array is required." });
+    }
+    await saveConfig("portfolio_photos", photos);
+    res.json({ success: true, photos });
+  } catch (error: any) {
+    console.error("Failed to save portfolio photos database:", error);
+    res.status(500).json({ error: "Failed to persist portfolio photos." });
   }
 });
 
@@ -754,6 +805,51 @@ app.post("/api/contact-info", async (req, res) => {
   } catch (error: any) {
     console.error("Failed to save contact info database:", error);
     res.status(500).json({ error: "Failed to persist contact info modifications." });
+  }
+});
+
+// API Route for Fetching Persistent Site-Wide Texts
+app.get("/api/site-texts", async (req, res) => {
+  try {
+    const defaultSiteTexts = {
+      heroTitle: "At Jack’s Mowing and More, we provide dependable lawn care and landscaping services that make your property stand out",
+      heroButtonEstimator: "Calculate Your Rate",
+      heroButtonServices: "Our Services",
+      servicesBadge: "Expert Craftsmanship",
+      servicesTitle: "Professional Services Offered",
+      servicesDescription: "From specialized site grading and stone masonry to clean lawn cutting, lawn recovery, and custom landscaping, we care for Jack's premium residential systems.",
+      portfolioBadge: "Completed Yard Masterpieces",
+      portfolioTitle: "Our Project Portfolio",
+      portfolioDescription: "Take a look at some of our recent professional designs. Each of these represents meticulous pruning, precise edging, and premium turf grooming.",
+      beforeAfterTitle: "Interactive Before & After!",
+      beforeAfterSubtitle: "↔ Slide to reveal finished treatment precision ↔",
+      estimatorBadge: "Calculate Custom Rates",
+      estimatorTitle: "Interactive Cost Estimator",
+      estimatorDescription: "Calculate instant estimated prices for any combination of our signature treatments.",
+      testimonialsBadge: "Client Testimonials",
+      testimonialsTitle: "Reviews From Real NJ Customers",
+      testimonialsDescription: "See what our satisfied homeowners in Milltown, East Brunswick, and surrounding towns say about Jack's Premium services.",
+      bookingBadge: "Schedule An Estimate",
+      bookingTitle: "Ready for your lawn restoration?",
+      bookingDescription: "Enter your property details below to submit a formal request for premium cleanup and estimate pricing."
+    };
+    const texts = await getConfig("site_texts", defaultSiteTexts);
+    res.json(texts);
+  } catch (error: any) {
+    console.error("Failed to read site-wide texts:", error);
+    res.status(500).json({ error: "Failed to retrieve site-wide texts." });
+  }
+});
+
+// API Route for Saving Persistent Site-Wide Texts
+app.post("/api/site-texts", async (req, res) => {
+  try {
+    const texts = req.body;
+    await saveConfig("site_texts", texts);
+    res.json({ success: true, ...texts });
+  } catch (error: any) {
+    console.error("Failed to save site-wide texts:", error);
+    res.status(500).json({ error: "Failed to save site-wide texts." });
   }
 });
 

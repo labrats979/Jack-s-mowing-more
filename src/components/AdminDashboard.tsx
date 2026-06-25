@@ -253,7 +253,8 @@ interface AdminDashboardProps {
   onSaveServices: (updated: Service[]) => void;
   onRestoreDefaults: () => void;
   coverPhoto?: string;
-  onSaveCoverPhoto?: (url: string) => void;
+  coverPhotoTint?: number;
+  onSaveCoverPhoto?: (url: string, tint?: number) => void;
   logoConfig?: {
     logoType: 'svg' | 'image';
     imageUrl: string;
@@ -270,6 +271,10 @@ interface AdminDashboardProps {
     description: string;
   };
   onSaveContactInfo?: (info: any) => void;
+  portfolioPhotos?: any[];
+  onSavePortfolioPhotos?: (photos: any[]) => void;
+  siteTexts?: any;
+  onSaveSiteTexts?: (texts: any) => void;
 }
 
 interface Lead {
@@ -290,11 +295,16 @@ export default function AdminDashboard({
   onSaveServices,
   onRestoreDefaults,
   coverPhoto,
+  coverPhotoTint,
   onSaveCoverPhoto,
   logoConfig,
   onSaveLogoConfig,
   contactInfo,
-  onSaveContactInfo
+  onSaveContactInfo,
+  portfolioPhotos,
+  onSavePortfolioPhotos,
+  siteTexts,
+  onSaveSiteTexts
 }: AdminDashboardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [password, setPassword] = useState('');
@@ -305,7 +315,26 @@ export default function AdminDashboard({
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'leads' | 'services' | 'photos' | 'email' | 'reviews'>('leads');
+  const [activeTab, setActiveTab] = useState<'leads' | 'services' | 'photos' | 'email' | 'reviews' | 'site-text'>('leads');
+
+  // Customizable Site-Wide Texts editing states
+  const [editTextValues, setEditTextValues] = useState<any>(siteTexts || {});
+  const [siteTextSaveStatus, setSiteTextSaveStatus] = useState('');
+
+  useEffect(() => {
+    if (siteTexts) {
+      setEditTextValues(siteTexts);
+    }
+  }, [siteTexts]);
+
+  const handleSaveAllSiteTexts = () => {
+    setSiteTextSaveStatus('saving');
+    if (onSaveSiteTexts) {
+      onSaveSiteTexts(editTextValues);
+      setSiteTextSaveStatus('saved');
+      setTimeout(() => setSiteTextSaveStatus(''), 2500);
+    }
+  };
 
   // Email Notification States
   const [recipientEmail, setRecipientEmail] = useState('jacks.mowing.and.more1@gmail.com');
@@ -474,7 +503,7 @@ export default function AdminDashboard({
     // Instantly generate and assign a local device object URL for zero-latency screen rendering
     const localUrl = URL.createObjectURL(file);
     if (onSaveCoverPhoto) {
-      onSaveCoverPhoto(localUrl);
+      onSaveCoverPhoto(localUrl, coverPhotoTint);
     }
 
     const reader = new FileReader();
@@ -512,7 +541,7 @@ export default function AdminDashboard({
             uploadImageWithFallback(compressedDataUrl, file.name, uniqueName)
               .then(imageUrl => {
                 if (onSaveCoverPhoto) {
-                  onSaveCoverPhoto(imageUrl);
+                  onSaveCoverPhoto(imageUrl, coverPhotoTint);
                 }
               })
               .finally(() => {
@@ -1303,6 +1332,21 @@ export default function AdminDashboard({
                       >
                         Reviews Manager ({reviews.length})
                       </button>
+                      <button
+                        onClick={() => {
+                          setActiveTab('site-text');
+                          setEditingId(null);
+                          setIsAdding(false);
+                          setEditingVisualsId(null);
+                        }}
+                        className={`px-4 py-2 rounded-lg font-mono text-xs font-bold tracking-wider uppercase transition-all cursor-pointer ${
+                          activeTab === 'site-text'
+                            ? 'bg-black text-white'
+                            : 'bg-white border border-stone-200 hover:bg-stone-50 text-stone-600'
+                        }`}
+                      >
+                        Site Text Customizer
+                      </button>
                     </div>
 
                     {/* CONTENT - TAB: LEADS INBOX */}
@@ -1715,11 +1759,31 @@ export default function AdminDashboard({
                               <ImageUploadSelector
                                 label="Upload New Cover Photo or Enter URL"
                                 value={coverPhoto || ''}
-                                onChange={(val) => onSaveCoverPhoto && onSaveCoverPhoto(val)}
+                                onChange={(val) => onSaveCoverPhoto && onSaveCoverPhoto(val, coverPhotoTint)}
                                 onFileChange={handleUploadCoverFile}
                                 placeholder="e.g. /src/assets/images/landscape_hero_1779327295782.png or custom Unsplash URL"
                                 isUploading={isUploadingCover}
                               />
+
+                              <div className="space-y-2 mt-4 pt-4 border-t border-stone-200/60 text-left">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-xs font-semibold text-stone-705">Cover Photo Tint (Darkness)</label>
+                                  <span className="text-xs font-mono font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                                    {coverPhotoTint ?? 35}%
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="95"
+                                  value={coverPhotoTint ?? 35}
+                                  onChange={(e) => onSaveCoverPhoto && onSaveCoverPhoto(coverPhoto || '', Number(e.target.value))}
+                                  className="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-emerald-700"
+                                />
+                                <p className="text-[10px] text-stone-500 font-light leading-snug">
+                                  Drag the slider to adjust the darkness overlay of the cover photo. A higher percentage increases contrast and legibility for the main text.
+                                </p>
+                              </div>
                             </div>
 
                             {/* Live Simulated Mobile Preview */}
@@ -1729,10 +1793,11 @@ export default function AdminDashboard({
                                 <img
                                   src={coverPhoto || '/src/assets/images/landscape_hero_1779327295782.png'}
                                   alt="Live cover background"
-                                  className="w-full h-full object-cover opacity-45 scale-102 filter brightness-[0.7] contrast-[1.05]"
+                                  className="w-full h-full object-cover scale-102 filter brightness-[0.7] contrast-[1.05]"
                                   referrerPolicy="no-referrer"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-transparent to-stone-950/40" />
+                                <div className="absolute inset-0 bg-black" style={{ opacity: (coverPhotoTint ?? 35) / 100 }} />
                               </div>
 
                               <div className="relative z-10 flex flex-col justify-between h-full space-y-4">
@@ -2542,6 +2607,126 @@ export default function AdminDashboard({
                             );
                           })}
                         </div>
+
+                        {/* 15 Portfolio Photo Frames Editor */}
+                        <div className="bg-emerald-50/15 border border-emerald-200 rounded-2xl p-5 sm:p-6 space-y-5 text-left font-sans mt-8">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200 pb-3">
+                            <div>
+                              <h6 className="font-display font-bold text-sm text-stone-900 uppercase flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-emerald-700 font-bold" />
+                                Portfolio Gallery Frames (15 Customizable Slots)
+                              </h6>
+                              <p className="text-stone-500 text-[11px] font-light mt-0.5">
+                                Customize the 15 photo frames shown on your dedicated Portfolio page. The first 4 will also automatically show up in the preview section on your Home Page!
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 border border-stone-200/60 rounded-xl p-3 bg-stone-50/50">
+                            {Array.from({ length: 15 }).map((_, index) => {
+                              const photoId = `frame-${index + 1}`;
+                              const currentPhoto = (portfolioPhotos || []).find(p => p.id === photoId) || {
+                                id: photoId,
+                                title: `Gallery Frame ${index + 1}`,
+                                description: "Beautiful landscape work",
+                                image: index % 3 === 0 ? "/src/assets/images/garden_beds_1779327341663.png" : (index % 3 === 1 ? "/src/assets/images/hardscape_patio_1779327358083.png" : "/src/assets/images/water_feature_1779327375070.png")
+                              };
+
+                              return (
+                                <div key={photoId} className="p-4 bg-white border border-stone-200 rounded-xl space-y-3 shadow-3xs text-left">
+                                  <div className="flex items-center justify-between border-b border-stone-100 pb-2">
+                                    <span className="text-xs font-mono font-black text-emerald-800 uppercase tracking-wider">
+                                      Frame {index + 1}
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-3">
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-mono text-stone-500 uppercase tracking-wider block">Frame Title</label>
+                                        <input
+                                          type="text"
+                                          value={currentPhoto.title}
+                                          onChange={(e) => {
+                                            const updated = [...(portfolioPhotos || [])];
+                                            const itemIdx = updated.findIndex(p => p.id === photoId);
+                                            const item = itemIdx >= 0 ? { ...updated[itemIdx] } : { id: photoId, title: '', description: '', image: currentPhoto.image };
+                                            item.title = e.target.value;
+                                            if (itemIdx >= 0) updated[itemIdx] = item; else updated.push(item);
+                                            onSavePortfolioPhotos && onSavePortfolioPhotos(updated);
+                                          }}
+                                          placeholder={`e.g. Lawn Mowing in Milltown`}
+                                          className="w-full px-3 py-1.5 border border-stone-200 rounded-lg text-xs font-light focus:outline-none focus:ring-1 focus:ring-emerald-650 focus:border-emerald-650 bg-stone-50 text-stone-900"
+                                        />
+                                      </div>
+
+                                      <div className="space-y-1">
+                                        <label className="text-[10px] font-mono text-stone-500 uppercase tracking-wider block">Description / Caption</label>
+                                        <input
+                                          type="text"
+                                          value={currentPhoto.description}
+                                          onChange={(e) => {
+                                            const updated = [...(portfolioPhotos || [])];
+                                            const itemIdx = updated.findIndex(p => p.id === photoId);
+                                            const item = itemIdx >= 0 ? { ...updated[itemIdx] } : { id: photoId, title: currentPhoto.title, description: '', image: currentPhoto.image };
+                                            item.description = e.target.value;
+                                            if (itemIdx >= 0) updated[itemIdx] = item; else updated.push(item);
+                                            onSavePortfolioPhotos && onSavePortfolioPhotos(updated);
+                                          }}
+                                          placeholder="e.g. Double pass cut on premium Kentucky Bluegrass"
+                                          className="w-full px-3 py-1.5 border border-stone-200 rounded-lg text-xs font-light focus:outline-none focus:ring-1 focus:ring-emerald-650 focus:border-emerald-650 bg-stone-50 text-stone-900"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                      <ImageUploadSelector
+                                        label="Frame Image"
+                                        value={currentPhoto.image}
+                                        onChange={(newUrl) => {
+                                          const updated = [...(portfolioPhotos || [])];
+                                          const itemIdx = updated.findIndex(p => p.id === photoId);
+                                          const item = itemIdx >= 0 ? { ...updated[itemIdx] } : { id: photoId, title: currentPhoto.title, description: currentPhoto.description, image: '' };
+                                          item.image = newUrl;
+                                          if (itemIdx >= 0) updated[itemIdx] = item; else updated.push(item);
+                                          onSavePortfolioPhotos && onSavePortfolioPhotos(updated);
+                                        }}
+                                        onFileChange={(file) => {
+                                          const localUrl = URL.createObjectURL(file);
+                                          const updated = [...(portfolioPhotos || [])];
+                                          const itemIdx = updated.findIndex(p => p.id === photoId);
+                                          const item = itemIdx >= 0 ? { ...updated[itemIdx] } : { id: photoId, title: currentPhoto.title, description: currentPhoto.description, image: '' };
+                                          item.image = localUrl;
+                                          if (itemIdx >= 0) updated[itemIdx] = item; else updated.push(item);
+                                          onSavePortfolioPhotos && onSavePortfolioPhotos(updated);
+
+                                          // Compress and upload
+                                          const reader = new FileReader();
+                                          reader.onload = (event) => {
+                                            if (event.target?.result && typeof event.target.result === 'string') {
+                                              const uniqueName = `portfolio/photo_${photoId}_${Date.now()}.jpg`;
+                                              uploadImageWithFallback(event.target.result, file.name, uniqueName)
+                                                .then(imageUrl => {
+                                                  const fullUpdated = [...(portfolioPhotos || [])];
+                                                  const fullItemIdx = fullUpdated.findIndex(p => p.id === photoId);
+                                                  if (fullItemIdx >= 0) {
+                                                    fullUpdated[fullItemIdx].image = imageUrl;
+                                                    onSavePortfolioPhotos && onSavePortfolioPhotos(fullUpdated);
+                                                  }
+                                                });
+                                            }
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }}
+                                        placeholder="Image path or external URL"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
                     )}
 
@@ -2814,6 +2999,327 @@ export default function AdminDashboard({
                             ))}
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {activeTab === 'site-text' && (
+                      <div className="space-y-6 font-sans text-left pb-4 animate-fade-in">
+                        <div className="border-b border-stone-200 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                          <div>
+                            <h5 className="font-display font-bold text-stone-900 text-sm uppercase flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-emerald-650" />
+                              Site-Wide Text Customizer Panel
+                            </h5>
+                            <p className="text-stone-500 text-[11px] font-light mt-1">
+                              Modify and tailor any heading, sub-heading, badge, or description on the home page dynamically. All updates save permanently in real-time.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleSaveAllSiteTexts}
+                            disabled={siteTextSaveStatus === 'saving'}
+                            className="shrink-0 px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-mono text-[10px] uppercase font-bold tracking-wider rounded-lg shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+                          >
+                            {siteTextSaveStatus === 'saving' ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving...
+                              </>
+                            ) : siteTextSaveStatus === 'saved' ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" /> Saved Successfully!
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-3.5 h-3.5" /> Save All Site Text
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Text Fields grouped by Section */}
+                        <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2">
+                          
+                          {/* 1. HERO SECTION */}
+                          <div className="bg-stone-50 border border-stone-200/80 p-5 rounded-2xl space-y-4">
+                            <span className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-wider block">1. Hero Section Texts</span>
+                            <div className="space-y-3.5">
+                              <div>
+                                <label className="text-xs font-bold text-stone-700 block mb-1">Hero Main Title Banner Text</label>
+                                <textarea
+                                  value={editTextValues?.heroTitle || ''}
+                                  onChange={(e) => setEditTextValues({ ...editTextValues, heroTitle: e.target.value })}
+                                  rows={2}
+                                  className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                  placeholder="Hero Title..."
+                                />
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Left Button Text (Estimator)</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.heroButtonEstimator || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, heroButtonEstimator: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Rate Calculator Label..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Right Button Text (Services)</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.heroButtonServices || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, heroButtonServices: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Services Label..."
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 2. SERVICES SECTION */}
+                          <div className="bg-stone-50 border border-stone-200/80 p-5 rounded-2xl space-y-4">
+                            <span className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-wider block">2. Services Section Texts</span>
+                            <div className="space-y-3.5">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Services Section Top Small Badge</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.servicesBadge || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, servicesBadge: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Services Badge..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Services Section Main Heading</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.servicesTitle || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, servicesTitle: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Services Heading..."
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-xs font-bold text-stone-700 block mb-1">Services Section Description Text</label>
+                                <textarea
+                                  value={editTextValues?.servicesDescription || ''}
+                                  onChange={(e) => setEditTextValues({ ...editTextValues, servicesDescription: e.target.value })}
+                                  rows={2}
+                                  className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                  placeholder="Services Description..."
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 3. PORTFOLIO & BEFORE/AFTER */}
+                          <div className="bg-stone-50 border border-stone-200/80 p-5 rounded-2xl space-y-4">
+                            <span className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-wider block">3. Portfolio &amp; Before/After Texts</span>
+                            <div className="space-y-3.5">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Portfolio Top Small Badge</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.portfolioBadge || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, portfolioBadge: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Portfolio Badge..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Portfolio Main Heading</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.portfolioTitle || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, portfolioTitle: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Portfolio Heading..."
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-xs font-bold text-stone-700 block mb-1">Portfolio Description Text</label>
+                                <textarea
+                                  value={editTextValues?.portfolioDescription || ''}
+                                  onChange={(e) => setEditTextValues({ ...editTextValues, portfolioDescription: e.target.value })}
+                                  rows={2}
+                                  className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                  placeholder="Portfolio Description..."
+                                />
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-stone-200/50 pt-3">
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Before &amp; After Main Title</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.beforeAfterTitle || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, beforeAfterTitle: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Before & After Title..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Before &amp; After Subtitle Slider Prompt</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.beforeAfterSubtitle || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, beforeAfterSubtitle: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Before & After Subtitle..."
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 4. COST ESTIMATOR */}
+                          <div className="bg-stone-50 border border-stone-200/80 p-5 rounded-2xl space-y-4">
+                            <span className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-wider block">4. Cost Estimator Texts</span>
+                            <div className="space-y-3.5">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Estimator Small Badge</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.estimatorBadge || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, estimatorBadge: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Estimator Badge..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Estimator Section Title</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.estimatorTitle || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, estimatorTitle: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Estimator Title..."
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-xs font-bold text-stone-700 block mb-1">Estimator Section Description</label>
+                                <textarea
+                                  value={editTextValues?.estimatorDescription || ''}
+                                  onChange={(e) => setEditTextValues({ ...editTextValues, estimatorDescription: e.target.value })}
+                                  rows={2}
+                                  className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                  placeholder="Estimator Description..."
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 5. TESTIMONIALS */}
+                          <div className="bg-stone-50 border border-stone-200/80 p-5 rounded-2xl space-y-4">
+                            <span className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-wider block">5. Client Reviews Texts</span>
+                            <div className="space-y-3.5">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Reviews Small Badge</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.testimonialsBadge || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, testimonialsBadge: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Reviews Badge..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Reviews Section Title</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.testimonialsTitle || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, testimonialsTitle: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Reviews Title..."
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-xs font-bold text-stone-700 block mb-1">Reviews Section Description</label>
+                                <textarea
+                                  value={editTextValues?.testimonialsDescription || ''}
+                                  onChange={(e) => setEditTextValues({ ...editTextValues, testimonialsDescription: e.target.value })}
+                                  rows={2}
+                                  className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                  placeholder="Reviews Description..."
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 6. BOOKING FORM */}
+                          <div className="bg-stone-50 border border-stone-200/80 p-5 rounded-2xl space-y-4">
+                            <span className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-wider block">6. Estimate Booking Form Texts</span>
+                            <div className="space-y-3.5">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Booking Small Badge</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.bookingBadge || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, bookingBadge: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Booking Badge..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-bold text-stone-700 block mb-1">Booking Section Title</label>
+                                  <input
+                                    type="text"
+                                    value={editTextValues?.bookingTitle || ''}
+                                    onChange={(e) => setEditTextValues({ ...editTextValues, bookingTitle: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                    placeholder="Booking Title..."
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-xs font-bold text-stone-700 block mb-1">Booking Section Description</label>
+                                <textarea
+                                  value={editTextValues?.bookingDescription || ''}
+                                  onChange={(e) => setEditTextValues({ ...editTextValues, bookingDescription: e.target.value })}
+                                  rows={2}
+                                  className="w-full px-3 py-2 bg-white border border-stone-250 rounded-lg text-xs text-stone-900 focus:outline-none focus:border-emerald-650 shadow-3xs"
+                                  placeholder="Booking Description..."
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                        </div>
+
+                        {/* Action buttons footer */}
+                        <div className="flex justify-end pt-4 border-t border-stone-200">
+                          <button
+                            type="button"
+                            onClick={handleSaveAllSiteTexts}
+                            disabled={siteTextSaveStatus === 'saving'}
+                            className="px-6 py-3 bg-black hover:bg-stone-900 text-white font-mono text-xs uppercase font-bold tracking-wider rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                          >
+                            {siteTextSaveStatus === 'saving' ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving...
+                              </>
+                            ) : siteTextSaveStatus === 'saved' ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" /> Saved!
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-3.5 h-3.5" /> Save All Site Text
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     )}
 

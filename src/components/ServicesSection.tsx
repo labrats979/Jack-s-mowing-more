@@ -4,6 +4,7 @@ import { Service } from '../types';
 interface ServicesSectionProps {
   services: Service[];
   onSelectServicePage: (serviceId: string) => void;
+  siteTexts?: any;
 }
 
 const DEFAULT_SERVICE_IMAGES: Record<string, string> = {
@@ -17,7 +18,7 @@ const DEFAULT_SERVICE_IMAGES: Record<string, string> = {
   'service-l-restoration': 'https://images.unsplash.com/photo-1535083783855-76ae62b2914e?auto=format&fit=crop&q=80&w=800'
 };
 
-export default function ServicesSection({ services, onSelectServicePage }: ServicesSectionProps) {
+export default function ServicesSection({ services, onSelectServicePage, siteTexts }: ServicesSectionProps) {
   const [serviceImages, setServiceImages] = React.useState<Record<string, string>>(DEFAULT_SERVICE_IMAGES);
 
   React.useEffect(() => {
@@ -39,6 +40,10 @@ export default function ServicesSection({ services, onSelectServicePage }: Servi
       });
   }, []);
 
+  const badgeText = siteTexts?.servicesBadge || "Expert Craftsmanship";
+  const titleText = siteTexts?.servicesTitle || "Professional Services Offered";
+  const descText = siteTexts?.servicesDescription || "From specialized site grading and stone masonry to clean lawn cutting, lawn recovery, and custom landscaping, we care for Jack's premium residential systems.";
+
   return (
     <section id="services" className="py-24 bg-white text-stone-800 border-b border-stone-100 relative">
       <div className="absolute inset-0 bg-stone-50 pointer-events-none opacity-20 grid-dots" />
@@ -48,14 +53,14 @@ export default function ServicesSection({ services, onSelectServicePage }: Servi
         {/* Section Heading */}
         <div className="text-center max-w-2xl mx-auto mb-16">
           <span className="text-stone-500 font-mono text-xs font-bold uppercase tracking-[0.2em] block mb-3">
-            Expert Craftsmanship
+            {badgeText}
           </span>
           <h2 className="font-display font-black text-3xl sm:text-4xl text-stone-900 tracking-tight leading-none uppercase mb-4">
-            Professional Services Offered
+            {titleText}
           </h2>
           <div className="w-16 h-1.5 bg-stone-900 mx-auto rounded mb-5" />
           <p className="text-stone-600 font-light text-sm sm:text-base leading-relaxed">
-            From specialized site grading and stone masonry to clean lawn cutting, lawn recovery, and custom landscaping, we care for Jack's premium residential systems.
+            {descText}
           </p>
         </div>
 

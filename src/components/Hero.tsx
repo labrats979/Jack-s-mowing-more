@@ -6,10 +6,18 @@ interface HeroProps {
   onGoToEstimator: () => void;
   onExploreServices: () => void;
   coverPhoto?: string;
+  coverPhotoTint?: number;
+  siteTexts?: any;
 }
 
-export default function Hero({ onGoToEstimator, onExploreServices, coverPhoto }: HeroProps) {
+export default function Hero({ onGoToEstimator, onExploreServices, coverPhoto, coverPhotoTint, siteTexts }: HeroProps) {
   const bgImg = coverPhoto || "/src/assets/images/landscape_hero_1779327295782.png";
+  const tintOpacity = coverPhotoTint !== undefined ? coverPhotoTint / 100 : 0.35;
+
+  const heroTitleText = siteTexts?.heroTitle || "At Jack’s Mowing and More, we provide dependable lawn care and landscaping services that make your property stand out";
+  const heroBtnEstimator = siteTexts?.heroButtonEstimator || "Calculate Your Rate";
+  const heroBtnServices = siteTexts?.heroButtonServices || "Our Services";
+
   return (
     <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-stone-950 mt-20 pt-10">
       {/* Background Image: High-end custom landscaping Golden Hour */}
@@ -22,7 +30,7 @@ export default function Hero({ onGoToEstimator, onExploreServices, coverPhoto }:
         />
         {/* Deep, rich overlays to match high-end cinematic site cleanups */}
         <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-transparent to-stone-950/80" />
-        <div className="absolute inset-0 bg-black/35" />
+        <div className="absolute inset-0 bg-black" style={{ opacity: tintOpacity }} />
       </div>
 
       {/* Grid Overlay decoration */}
@@ -38,10 +46,10 @@ export default function Hero({ onGoToEstimator, onExploreServices, coverPhoto }:
           transition={{ duration: 0.8, delay: 0.1 }}
           className="font-display font-black text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white tracking-wide uppercase leading-[1.1] max-w-4xl mb-12 sm:mb-14"
         >
-          At Jack’s Mowing and More, we provide dependable lawn care and landscaping services that make your property stand out
+          {heroTitleText}
         </motion.h1>
 
-         {/* Centered Buttons Side-by-Side */}
+        {/* Centered Buttons Side-by-Side */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -52,14 +60,14 @@ export default function Hero({ onGoToEstimator, onExploreServices, coverPhoto }:
             onClick={onGoToEstimator}
             className="w-full sm:w-auto min-w-[200px] px-8 py-4 rounded-md bg-black hover:bg-zinc-900 text-white border border-black font-display font-extrabold text-xs tracking-wider uppercase transition-all duration-200 active:scale-95 shadow-lg cursor-pointer"
           >
-            Calculate Your Rate
+            {heroBtnEstimator}
           </button>
           
           <button
             onClick={onExploreServices}
             className="w-full sm:w-auto min-w-[200px] px-8 py-4 rounded-md bg-white hover:bg-stone-100 text-stone-900 border border-stone-200 font-display font-bold text-xs tracking-wider uppercase transition-all duration-200 active:scale-95 shadow-lg cursor-pointer"
           >
-            Our Services
+            {heroBtnServices}
           </button>
         </motion.div>
 

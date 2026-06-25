@@ -6,11 +6,13 @@ import {
   CheckCircle, ChevronLeft, ChevronRight, AlertCircle, Plus
 } from 'lucide-react';
 
-export default function TestimonialsSection() {
+export default function TestimonialsSection({ services: propServices }: { services?: any[] } = {}) {
   const [testimonials, setTestimonials] = useState<any[]>([]);
   const [newAuthor, setNewAuthor] = useState('');
   const [newLocation, setNewLocation] = useState('');
-  const [newProjectType, setNewProjectType] = useState('Horticulture & Planting Bed');
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [localServices, setLocalServices] = useState<any[]>(propServices || []);
   const [newContent, setNewContent] = useState('');
   const [newRating, setNewRating] = useState(5);
   const [hoverRating, setHoverRating] = useState<number | null>(null);
@@ -18,6 +20,27 @@ export default function TestimonialsSection() {
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [slideIndex, setSlideIndex] = useState(0);
+
+  // Load services if they are not passed via props
+  useEffect(() => {
+    if (propServices && propServices.length > 0) {
+      setLocalServices(propServices);
+    } else {
+      fetch('/api/services')
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to load services');
+          return res.json();
+        })
+        .then(data => {
+          if (Array.isArray(data) && data.length > 0) {
+            setLocalServices(data);
+          }
+        })
+        .catch(err => {
+          console.warn('Could not load services fallback for review options:', err);
+        });
+    }
+  }, [propServices]);
 
   // Load reviews from persistent API
   const fetchReviewsList = () => {
@@ -44,6 +67,9 @@ export default function TestimonialsSection() {
     e.preventDefault();
     if (!newAuthor.trim() || !newContent.trim()) return;
 
+    // Join selected services or use blank if none selected (optional)
+    const finalProjectType = selectedServices.length > 0 ? selectedServices.join(', ') : '';
+
     fetch('/api/reviews', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -51,7 +77,7 @@ export default function TestimonialsSection() {
         author: newAuthor,
         location: newLocation.trim() || 'Milltown, NJ',
         rating: newRating,
-        projectType: newProjectType,
+        projectType: finalProjectType,
         content: newContent
       })
     })
@@ -64,6 +90,7 @@ export default function TestimonialsSection() {
         setNewAuthor('');
         setNewLocation('');
         setNewContent('');
+        setSelectedServices([]);
         setNewRating(5);
         setFormSubmitted(true);
         setSlideIndex(0); // Reset to first slide to see their review
@@ -81,7 +108,7 @@ export default function TestimonialsSection() {
           author: newAuthor,
           location: newLocation.trim() || 'Milltown, NJ',
           rating: newRating,
-          projectType: newProjectType,
+          projectType: finalProjectType,
           content: newContent,
           date: new Date().toLocaleDateString("en-US", { year: 'numeric', month: 'long' })
         };
@@ -90,6 +117,7 @@ export default function TestimonialsSection() {
         setNewAuthor('');
         setNewLocation('');
         setNewContent('');
+        setSelectedServices([]);
         setFormSubmitted(true);
         setSlideIndex(0);
 
@@ -321,24 +349,64 @@ export default function TestimonialsSection() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
-                      <div className="space-y-1.5">
-                        <label className="text-xs text-stone-900 font-bold" htmlFor="review-project">Project Type *</label>
-                        <select
-                          id="review-project"
-                          value={newProjectType}
-                          onChange={(e) => setNewProjectType(e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-lg bg-white text-stone-950 border border-stone-300 focus:border-emerald-650 focus:ring-1 focus:ring-emerald-600/30 text-sm focus:outline-none font-medium"
+                    <div className="space-y-1.5 text-left relative">
+                      <label className="text-xs text-stone-900 font-bold block">
+                        Services Done (Optional - Select multiple)
+                      </label>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                          className="w-full px-4 py-2.5 rounded-lg bg-white text-stone-950 border border-stone-300 focus:border-emerald-650 text-sm focus:outline-none font-medium flex items-center justify-between shadow-3xs cursor-pointer text-left"
                         >
-                          <option>Horticulture & Planting Bed</option>
-                          <option>Flagstone & Slate Patio</option>
-                          <option>Cascading Water Feature</option>
-                          <option>Outdoor LED Night Lighting</option>
-                          <option>Custom Retaining Walls</option>
-                          <option>Precision Lawn Mowing</option>
-                          <option>Lawn Restoration & Aeration</option>
-                          <option>Hedge & Bush Trimming</option>
-                        </select>
+                          <span className="truncate">
+                            {selectedServices.length === 0
+                              ? "Select services..."
+                              : selectedServices.join(', ')}
+                          </span>
+                          <span className="text-stone-400 text-xs ml-2">▼</span>
+                        </button>
+
+                        {isDropdownOpen && (
+                          <div className="absolute left-0 right-0 mt-1 bg-white border border-stone-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto p-2 space-y-1 animate-fade-in text-stone-900">
+                            <div className="flex justify-between items-center p-1.5 border-b border-stone-100 mb-1">
+                              <span className="text-[10px] font-mono text-stone-400 uppercase tracking-wider font-bold">Select Services</span>
+                              <button
+                                type="button"
+                                onClick={() => setIsDropdownOpen(false)}
+                                className="text-[10px] font-mono font-bold text-emerald-700 hover:text-emerald-800 px-2 py-0.5 bg-emerald-50 rounded"
+                              >
+                                Done
+                              </button>
+                            </div>
+                            {localServices.map((svc) => {
+                              const isChecked = selectedServices.includes(svc.title);
+                              return (
+                                <label
+                                  key={svc.id}
+                                  className="flex items-center gap-2 p-2 hover:bg-stone-50 rounded-lg cursor-pointer transition-colors text-xs select-none"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => {
+                                      if (isChecked) {
+                                        setSelectedServices(selectedServices.filter(s => s !== svc.title));
+                                      } else {
+                                        setSelectedServices([...selectedServices, svc.title]);
+                                      }
+                                    }}
+                                    className="rounded text-emerald-650 focus:ring-emerald-600 h-4 w-4 border-stone-300"
+                                  />
+                                  <span className="font-medium text-stone-800">{svc.title}</span>
+                                </label>
+                              );
+                            })}
+                            {localServices.length === 0 && (
+                              <p className="text-stone-400 text-[11px] p-2 italic text-center">No services loaded</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -413,8 +481,12 @@ export default function TestimonialsSection() {
                         </h5>
                         <div className="text-[10px] text-stone-700 font-mono flex flex-wrap gap-1 items-center">
                           <span>{test.location}</span>
-                          <span>•</span>
-                          <span className="text-emerald-900 font-bold">{test.projectType}</span>
+                          {test.projectType && (
+                            <>
+                              <span>•</span>
+                              <span className="text-emerald-900 font-bold">{test.projectType}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>

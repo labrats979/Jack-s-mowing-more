@@ -11,13 +11,15 @@ interface CostEstimatorProps {
   services: Service[];
   selectedServiceIds: string[];
   onToggleServiceId: (serviceId: string) => void;
+  siteTexts?: any;
 }
 
 export default function CostEstimator({
   onApplyEstimate,
   services = [],
   selectedServiceIds = [],
-  onToggleServiceId
+  onToggleServiceId,
+  siteTexts
 }: CostEstimatorProps) {
   // Input parameters - 1500: Small, 3200: Medium, 5000: Large. Initialized to null to require selections.
   const [lawnSqFt, setLawnSqFt] = useState<number | null>(null);
@@ -163,11 +165,14 @@ export default function CostEstimator({
         
         {/* Module Title */}
         <div className="max-w-xl mb-12">
+          <span className="text-stone-500 font-mono text-[10px] uppercase tracking-[0.2em] block mb-2 font-bold">
+            {siteTexts?.estimatorBadge || "Calculate Custom Rates"}
+          </span>
           <h2 className="font-display font-bold text-3xl sm:text-4xl text-stone-900 tracking-tight leading-tight mb-4 uppercase">
-            Interactive Cost Estimator
+            {siteTexts?.estimatorTitle || "Interactive Cost Estimator"}
           </h2>
-          <p className="text-stone-605 font-light text-sm sm:text-base leading-relaxed">
-            Get a free online estimate instantly with our free interactive cost estimator! Simply choose your lawn size and select your desired frequency and specifications below.
+          <p className="text-stone-650 font-light text-sm sm:text-base leading-relaxed">
+            {siteTexts?.estimatorDescription || "Get a free online estimate instantly with our free interactive cost estimator! Simply choose your lawn size and select your desired frequency and specifications below."}
           </p>
         </div>
 
